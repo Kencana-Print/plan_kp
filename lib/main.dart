@@ -1,5 +1,7 @@
 // ignore_for_file: use_build_context_synchronously, unnecessary_cast
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:awesome_dialog/awesome_dialog.dart';
@@ -54,7 +56,6 @@ class PlanKPApp extends StatelessWidget {
             final rawArgs = ModalRoute.of(ctx)!.settings.arguments;
             final args = rawArgs is int ? rawArgs : int.tryParse('$rawArgs') ?? 0;
             return _ProtectedRoute(
-              allowedRoles: const ['admin', 'manager'],
               child: JadwalDetailScreen(jadwalId: args),
             );
           },
@@ -328,9 +329,13 @@ class _MainAppWrapperState extends State<MainAppWrapper> with WidgetsBindingObse
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () {
+                      onPressed: () async {
                         Navigator.of(ctx).pop();
-                        // Download ulang (abaikan file lama)
+                        try {
+                          final f = File(filePath);
+                          if (await f.exists()) await f.delete();
+                        } catch (_) {}
+                        // Download ulang dari awal
                         _showDownloadProgressDialog(manifest);
                       },
                       style: OutlinedButton.styleFrom(
@@ -373,78 +378,61 @@ class _MainAppWrapperState extends State<MainAppWrapper> with WidgetsBindingObse
     );
   }
 
-  // ─── Dialog 3: Download Progress ───
+  // ─── Dialog 3: Progress Download In-App ───
   void _showDownloadProgressDialog(AppUpdateManifest manifest) {
     final context = navigatorKey.currentContext;
     if (context == null) return;
 
-    final progressNotifier = ValueNotifier<int>(0);
+    final progressNotifier = ValueNotifier<double>(0.0);
     bool isCancelled = false;
 
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => PopScope(
-        canPop: false,
-        child: Dialog(
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: ValueListenableBuilder<int>(
-              valueListenable: progressNotifier,
-              builder: (_, percent, __) => Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
-                      shape: BoxShape.circle,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Mengunduh Pembaruan',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              ValueListenableBuilder<double>(
+                valueListenable: progressNotifier,
+                builder: (context, percent, _) => Column(
+                  children: [
+                    LinearProgressIndicator(
+                      value: percent > 0 ? percent : null,
+                      backgroundColor: Colors.grey[200],
+                      color: AppColors.primary,
+                      minHeight: 8,
+                      borderRadius: BorderRadius.circular(4),
                     ),
-                    child: const Icon(Icons.download_rounded,
-                        color: AppColors.primary, size: 36),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Mengunduh Pembaruan...',
-                    style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'PlanKP-v${manifest.version}.apk',
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.textSecondary),
-                  ),
-                  const SizedBox(height: 20),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: LinearProgressIndicator(
-                      value: percent / 100,
-                      minHeight: 10,
-                      backgroundColor: Colors.grey.shade200,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        percent < 100 ? AppColors.primary : Colors.green,
+                    const SizedBox(height: 8),
+                    Text(
+                      '${(percent * 100).toInt()}%',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '$percent%',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: percent < 100
-                          ? AppColors.textSecondary
-                          : Colors.green,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
                     child: OutlinedButton(
                       onPressed: () {
                         isCancelled = true;
@@ -460,7 +448,7 @@ class _MainAppWrapperState extends State<MainAppWrapper> with WidgetsBindingObse
                   ),
                 ],
               ),
-            ),
+            ],
           ),
         ),
       ),
@@ -471,7 +459,7 @@ class _MainAppWrapperState extends State<MainAppWrapper> with WidgetsBindingObse
         .downloadAndInstall(
       manifest: manifest,
       onProgress: (percent) {
-        if (!isCancelled) progressNotifier.value = percent;
+        if (!isCancelled) progressNotifier.value = percent.toDouble();
       },
     )
         .then((result) {
@@ -565,6 +553,31 @@ class _MainAppWrapperState extends State<MainAppWrapper> with WidgetsBindingObse
                     const SizedBox(height: 6),
                     _buildStepRow('4',
                         'Cari dan klik file APK PlanKP untuk memasangnya.'),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.support_agent_rounded,
+                              size: 18, color: AppColors.primary),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Mengalami kendala install? Silakan hubungi IT Support.',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),

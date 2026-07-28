@@ -16,7 +16,7 @@ class JenisScreen extends StatefulWidget {
 }
 
 class _JenisScreenState extends State<JenisScreen> {
-  static const _kPageBg = Color(0xFFF8FAFC);
+  static const _kPageBg = AppColors.surface;
   final _searchCtrl = TextEditingController();
 
   @override
@@ -82,27 +82,28 @@ class _JenisScreenState extends State<JenisScreen> {
                   child: Column(
                     children: [
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                        padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
                         child: Container(
                           decoration: BoxDecoration(
                             color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(AppRadius.md),
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.black.withValues(alpha: 0.02),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
                               ),
                             ],
                           ),
                           child: TextField(
                             controller: _searchCtrl,
+                            style: const TextStyle(fontSize: 12.5),
                             decoration: InputDecoration(
                               hintText: 'Cari nama atau kategori jenis...',
-                              prefixIcon: const Icon(Icons.search, size: 20, color: AppColors.textSecondary),
+                              prefixIcon: const Icon(Icons.search, size: 18, color: AppColors.textSecondary),
                               suffixIcon: _searchCtrl.text.isNotEmpty
                                   ? IconButton(
-                                      icon: const Icon(Icons.clear, size: 20, color: AppColors.textSecondary),
+                                      icon: const Icon(Icons.clear, size: 18, color: AppColors.textSecondary),
                                       onPressed: () {
                                         _searchCtrl.clear();
                                         setState(() {});
@@ -111,17 +112,17 @@ class _JenisScreenState extends State<JenisScreen> {
                                   : null,
                               filled: true,
                               fillColor: Colors.white,
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                               border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(AppRadius.md),
                                 borderSide: const BorderSide(color: AppColors.border),
                               ),
                               enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(AppRadius.md),
                                 borderSide: const BorderSide(color: AppColors.border),
                               ),
                               focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(AppRadius.md),
                                 borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
                               ),
                             ),
@@ -503,14 +504,27 @@ class _JenisFormState extends State<_JenisForm> {
                 if (isManager) ...[
                   DropdownButtonFormField<String>(
                     value: _kategori.isEmpty ? 'GA' : _kategori,
+                    style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
                     decoration: const InputDecoration(
                       labelText: 'Kategori Divisi',
                       prefixIcon: Icon(Icons.business_outlined),
                     ),
                     items: const [
-                      DropdownMenuItem(value: 'GA', child: Text('GA')),
-                      DropdownMenuItem(value: 'IT', child: Text('IT')),
-                      DropdownMenuItem(value: 'DRIVER', child: Text('DRIVER')),
+                      DropdownMenuItem(
+                          value: 'GA',
+                          child: Text('GA',
+                              style: TextStyle(
+                                  fontSize: 13, color: AppColors.textPrimary))),
+                      DropdownMenuItem(
+                          value: 'IT',
+                          child: Text('IT',
+                              style: TextStyle(
+                                  fontSize: 13, color: AppColors.textPrimary))),
+                      DropdownMenuItem(
+                          value: 'DRIVER',
+                          child: Text('DRIVER',
+                              style: TextStyle(
+                                  fontSize: 13, color: AppColors.textPrimary))),
                     ],
                     onChanged: (val) {
                       if (val != null) {

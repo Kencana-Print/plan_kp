@@ -5,14 +5,14 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../core/widgets/app_notifier.dart';
 import '../../../core/widgets/empty_state.dart';
+import '../../../core/widgets/shimmer_loading.dart';
 import '../../../features/master/providers/master_provider.dart';
 import '../models/jadwal_model.dart';
 import '../models/realisasi_model.dart';
 import '../providers/jadwal_provider.dart';
 import '../widgets/realisasi_detail_sheet.dart';
-import '../../../core/widgets/shimmer_loading.dart';
 
-const _kDetailPageBg = Color(0xFFF8FAFC);
+const _kDetailPageBg = AppColors.surface;
 
 class JadwalDetailScreen extends StatefulWidget {
   final int jadwalId;
@@ -25,6 +25,72 @@ class JadwalDetailScreen extends StatefulWidget {
 
 class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
   String _realisasiFilter = 'Semua'; // 'Semua', 'Sudah', 'Belum'
+
+
+  DateTime _dateOnly(DateTime date) =>
+      DateTime(date.year, date.month, date.day);
+
+  static const List<String> _divisiSixDays = [
+    'GA',
+    'TEKNISI',
+    'MAINTENANCE',
+    'PRODUKSI',
+    'WORKSHOP'
+  ];
+
+  bool _isWorkingDay(DateTime date, String? divisi, Set<int> holidays) {
+    if (holidays.contains(date.day)) return false;
+    if (date.weekday == DateTime.sunday) return false;
+    if (date.weekday == DateTime.saturday) {
+      final norm = (divisi ?? '').trim().toUpperCase();
+      return _divisiSixDays.any((d) => d.toUpperCase() == norm);
+    }
+    return true;
+  }
+
+  DateTime? _findNextWorkingDay(
+      DateTime date, DateTime limit, String? divisi, Set<int> holidays) {
+    var d = date;
+    while (!_isWorkingDay(d, divisi, holidays)) {
+      d = d.add(const Duration(days: 1));
+      if (d.isAfter(limit)) return null;
+    }
+    return d;
+  }
+
+  List<DateTime> _getScheduleDatesInRange(
+      JadwalModel j, DateTime rangeStart, DateTime rangeEnd, Set<int> holidays) {
+    List<DateTime> dates = [];
+    final divisi = j.jdwDivisi;
+
+    if (j.jdwFrekuensi == 'Harian') {
+      for (var d = rangeStart;
+          !d.isAfter(rangeEnd);
+          d = d.add(const Duration(days: 1))) {
+        if (_isWorkingDay(d, divisi, holidays)) dates.add(d);
+      }
+    } else if (j.jdwFrekuensi == 'Mingguan') {
+      var curr = rangeStart;
+      while (!curr.isAfter(rangeEnd)) {
+        final nextWork = _findNextWorkingDay(curr, rangeEnd, divisi, holidays);
+        if (nextWork != null) {
+          dates.add(nextWork);
+        }
+        curr = curr.add(const Duration(days: 7));
+      }
+    } else if (j.jdwFrekuensi == 'Bulanan') {
+      var curr = rangeStart;
+      while (!curr.isAfter(rangeEnd)) {
+        final nextWork = _findNextWorkingDay(curr, rangeEnd, divisi, holidays);
+        if (nextWork != null) {
+          dates.add(nextWork);
+        }
+        curr = DateTime(curr.year, curr.month + 1, curr.day);
+      }
+    }
+    return dates;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -36,12 +102,15 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
   Future<void> _loadDetailData() async {
     final provider = context.read<JadwalProvider>();
     final master = context.read<MasterProvider>();
-    
+
     await provider.fetchJadwalDetail(widget.jadwalId);
     await provider.fetchRealisasi(jadwalId: widget.jadwalId, status: 'Selesai');
-    
+
     if (master.jenisMaster.isEmpty) {
       await master.fetchJenis();
+    }
+    if (master.userList.isEmpty) {
+      await master.fetchUsers(showLoading: false);
     }
   }
 
@@ -56,11 +125,11 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
       return;
     }
 
-    // Kumpulkan semua realisasi untuk unit inventaris yang sama
     final riwayat = provider.realisasiList
-        .where((r) => r.realInvId == item.realInvId && r.realStatus == 'Selesai')
+        .where(
+            (r) => r.realInvId == item.realInvId && r.realStatus == 'Selesai')
         .toList()
-      ..sort((a, b) => b.realTgl.compareTo(a.realTgl)); // terbaru di atas
+      ..sort((a, b) => b.realTgl.compareTo(a.realTgl));
 
     await RealisasiDetailSheet.show(
       context,
@@ -68,12 +137,11 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
       title: 'Detail Realisasi Unit',
       riwayatRealisasi: riwayat,
       onTapRiwayat: (tappedItem) async {
-        Navigator.pop(context); // tutup sheet saat ini
-        await _openRealisasiDetail(tappedItem); // buka detail baru
+        Navigator.pop(context);
+        await _openRealisasiDetail(tappedItem);
       },
     );
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -104,14 +172,43 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
           final jenisNama = jadwal.jdwInvJenis ??
               master.jenisById(jadwal.jdwJenisId)?.jenisNama ??
               'ID ${jadwal.jdwJenisId}';
-          final targetUnit = jadwal.jdwTarget ?? jadwal.jdwTotalUnit ?? 0;
-          final selesaiUnit = jadwal.jdwSelesaiUnit ?? 0;
-          final progressPct =
-              targetUnit > 0 ? (selesaiUnit / targetUnit * 100).round() : 0;
-          final selesaiInvIds = provider.realisasiList
-              .where((item) => item.realStatus == 'Selesai')
+          final now = DateTime.now();
+          final startDate = DateTime.tryParse(jadwal.jdwTglMulai) ?? now;
+          final nextDueParsed = jadwal.jdwNextDueDate != null
+              ? DateTime.tryParse(jadwal.jdwNextDueDate!)
+              : null;
+          final rangeEnd = (nextDueParsed != null && nextDueParsed.isAfter(now))
+              ? nextDueParsed
+              : now;
+
+          final holidayDays = provider.getHolidayDaysForMonth(now);
+          final scheduleDatesInRange = _getScheduleDatesInRange(
+              jadwal, _dateOnly(startDate), _dateOnly(rangeEnd), holidayDays);
+
+          final perTarget = (jadwal.jdwTarget ?? 0) > 0
+              ? jadwal.jdwTarget!
+              : (jadwal.jdwTotalUnit ?? 0);
+          final targetUnitInRange = scheduleDatesInRange.length * perTarget;
+
+          final currentPeriodRealisasi = provider.realisasiList.where((item) {
+            if (item.realStatus != 'Selesai') return false;
+            final rDate = DateTime.tryParse(item.realTgl);
+            if (rDate == null) return false;
+            final normR = _dateOnly(rDate);
+            return !normR.isBefore(_dateOnly(startDate)) &&
+                !normR.isAfter(_dateOnly(rangeEnd));
+          }).toList();
+
+          final selesaiInvIds = currentPeriodRealisasi
               .map((item) => item.realInvId)
               .toSet();
+          final selesaiUnit = currentPeriodRealisasi.length;
+          final targetUnit = targetUnitInRange > 0
+              ? targetUnitInRange
+              : (jadwal.jdwTarget ?? jadwal.jdwTotalUnit ?? 1);
+          final progressPct = targetUnit > 0
+              ? (selesaiUnit / targetUnit * 100).round().clamp(0, 100)
+              : 0;
 
           return RefreshIndicator(
             onRefresh: _loadDetailData,
@@ -122,23 +219,17 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
                   padding: EdgeInsets.fromLTRB(
                       horizontalPadding, 16, horizontalPadding, 28),
                   children: [
-                    _buildHeroCard(
+                    _buildSummaryCard(
                       context,
                       jadwal: jadwal,
                       jenisNama: jenisNama,
                       progressPct: progressPct,
                       targetUnit: targetUnit,
                       selesaiUnit: selesaiUnit,
+                      totalUnit: jadwal.jdwTotalUnit ?? 0,
                       master: master,
                     ),
-                    const SizedBox(height: 16),
-                    _buildStatsRow(
-                      targetUnit: targetUnit,
-                      selesaiUnit: selesaiUnit,
-                      totalUnit: jadwal.jdwTotalUnit ?? 0,
-                      daysRemaining: jadwal.jdwDaysRemaining,
-                    ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
                     _buildInfoSection(
                       context,
                       jadwal: jadwal,
@@ -146,11 +237,12 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
                       master: master,
                       progressPct: progressPct,
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
                     _buildInventarisSection(
                       context,
                       jadwal: jadwal,
                       selesaiInvIds: selesaiInvIds,
+                      currentPeriodRealisasi: currentPeriodRealisasi,
                     ),
                   ],
                 ),
@@ -162,163 +254,269 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
     );
   }
 
-  Widget _buildHeroCard(
+  Widget _buildSummaryCard(
     BuildContext context, {
     required JadwalModel jadwal,
     required String jenisNama,
     required int progressPct,
     required int targetUnit,
     required int selesaiUnit,
+    required int totalUnit,
     required MasterProvider master,
   }) {
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x06000000),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Row: Icon + Title & Badges
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.event_note_rounded,
+                  color: AppColors.primary,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      jadwal.jdwJudul,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        height: 1.25,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        _badgeChip(
+                          icon: Icons.repeat_rounded,
+                          label: jadwal.jdwFrekuensi,
+                          bgColor: AppColors.primary.withValues(alpha: 0.08),
+                          textColor: AppColors.primary,
+                        ),
+                        _badgeChip(
+                          icon: Icons.category_outlined,
+                          label: jenisNama,
+                          bgColor: const Color(0xFFF1F5F9),
+                          textColor: AppColors.textSecondary,
+                        ),
+                        _badgeChip(
+                          icon: Icons.factory_outlined,
+                          label: _displayPabrikList(master, jadwal.jdwPabrikList),
+                          bgColor: const Color(0xFFF1F5F9),
+                          textColor: AppColors.textSecondary,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          // Progress & Compact Bar Stats Box
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Column(
               children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.event_note_outlined,
-                    color: AppColors.primary,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Capaian Realisasi',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    RichText(
+                      text: TextSpan(
+                        children: [
+                          TextSpan(
+                            text: '$progressPct%',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                          TextSpan(
+                            text: ' (Tercapai $selesaiUnit dari $targetUnit unit target)',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    minHeight: 8,
+                    value: targetUnit > 0
+                        ? (selesaiUnit / targetUnit).clamp(0.0, 1.0)
+                        : 0,
+                    backgroundColor: const Color(0xFFE2E8F0),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      progressPct >= 100
+                          ? const Color(0xFF16A34A)
+                          : AppColors.primary,
+                    ),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        jadwal.jdwJudul,
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 19,
-                          fontWeight: FontWeight.w700,
-                          height: 1.2,
-                        ),
+                const SizedBox(height: 10),
+                const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _compactBarStat(
+                        icon: Icons.inventory_2_outlined,
+                        label: 'Total Unit',
+                        value: '$totalUnit Unit',
+                        color: const Color(0xFF7C3AED),
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        '$jenisNama · ${jadwal.jdwFrekuensi} · ${_displayPabrikList(master, jadwal.jdwPabrikList)}',
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 12,
-                        ),
+                    ),
+                    Container(height: 18, width: 1, color: const Color(0xFFCBD5E1)),
+                    Expanded(
+                      child: _compactBarStat(
+                        icon: Icons.play_circle_outline_rounded,
+                        label: 'Tgl Mulai',
+                        value: _displayDate(jadwal.jdwTglMulai),
+                        color: const Color(0xFF2563EB),
                       ),
-                    ],
-                  ),
+                    ),
+                    Container(height: 18, width: 1, color: const Color(0xFFCBD5E1)),
+                    Expanded(
+                      child: _compactBarStat(
+                        icon: Icons.event_available_outlined,
+                        label: 'Tgl Selesai',
+                        value: (jadwal.jdwTglSelesai != null && jadwal.jdwTglSelesai!.trim().isNotEmpty)
+                            ? _displayDate(jadwal.jdwTglSelesai)
+                            : 'Tanpa Batas Akhir',
+                        color: (jadwal.jdwTglSelesai != null && jadwal.jdwTglSelesai!.trim().isNotEmpty)
+                            ? const Color(0xFF059669)
+                            : const Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _heroMetric(
-                          'Target',
-                          '$targetUnit unit',
-                        ),
-                      ),
-                      Expanded(
-                        child: _heroMetric(
-                          'Realisasi',
-                          '$selesaiUnit unit',
-                        ),
-                      ),
-                      Expanded(
-                        child: _heroMetric(
-                          'Capaian',
-                          '$progressPct%',
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(999),
-                    child: LinearProgressIndicator(
-                      minHeight: 10,
-                      value: targetUnit > 0
-                          ? (selesaiUnit / targetUnit).clamp(0.0, 1.0)
-                          : 0,
-                      backgroundColor: const Color(0xFFE2E8F0),
-                      valueColor: const AlwaysStoppedAnimation<Color>(
-                        AppColors.primary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildStatsRow({
-    required int targetUnit,
-    required int selesaiUnit,
-    required int totalUnit,
-    required int? daysRemaining,
+  Widget _compactBarStat({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
   }) {
-    return Row(
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Expanded(
-          child: _statCard(
-            icon: Icons.flag_outlined,
-            label: 'Target',
-            value: '$targetUnit',
-            accent: const Color(0xFF2563EB),
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 12, color: color),
+            const SizedBox(width: 3),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 10.5,
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _statCard(
-            icon: Icons.done_all_outlined,
-            label: 'Realisasi',
-            value: '$selesaiUnit',
-            accent: const Color(0xFF16A34A),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: AppColors.textPrimary,
           ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _statCard(
-            icon: Icons.inventory_2_outlined,
-            label: 'Inventaris',
-            value: '$totalUnit',
-            accent: const Color(0xFF7C3AED),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _statCard(
-            icon: Icons.schedule_outlined,
-            label: 'Hari Lagi',
-            value: daysRemaining?.toString() ?? '-',
-            accent: const Color(0xFFF97316),
-          ),
+          textAlign: TextAlign.center,
+          overflow: TextOverflow.ellipsis,
         ),
       ],
+    );
+  }
+
+  Widget _badgeChip({
+    required IconData icon,
+    required String label,
+    required Color bgColor,
+    required Color textColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: textColor),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: textColor,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -335,31 +533,109 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
     final showJadwalGap =
         jadwal.jdwFrekuensi == 'Mingguan' || jadwal.jdwFrekuensi == 'Bulanan';
 
+    final infoItems = [
+      _InfoItem(
+          icon: Icons.category_outlined,
+          label: 'Jenis Inventaris',
+          value: jenisNama),
+      _InfoItem(
+          icon: Icons.business_outlined,
+          label: 'Divisi',
+          value: jadwal.jdwDivisi.isEmpty ? '-' : jadwal.jdwDivisi),
+      _InfoItem(
+          icon: Icons.person_outline,
+          label: 'Pelaksana',
+          value: jadwal.assignedNama),
+      _InfoItem(
+          icon: Icons.factory_outlined,
+          label: 'Pabrik',
+          value: _displayPabrikList(master, jadwal.jdwPabrikList)),
+      _InfoItem(
+          icon: Icons.calendar_today_outlined,
+          label: 'Mulai Jadwal',
+          value: DateFormatter.toDisplay(jadwal.jdwTglMulai)),
+      if (jadwal.jdwTglSelesai != null)
+        _InfoItem(
+            icon: Icons.event_available_outlined,
+            label: 'Akhir Periode',
+            value: DateFormatter.toDisplay(jadwal.jdwTglSelesai)),
+      _InfoItem(
+          icon: Icons.update_outlined,
+          label: 'Jadwal Berikutnya',
+          value: _displayDate(jadwal.jdwNextDueDate)),
+      _InfoItem(
+          icon: Icons.pie_chart_outline,
+          label: 'Presentase Realisasi',
+          value: '$progressPct%'),
+    ];
+
     return _sectionCard(
       title: 'Informasi Jadwal',
-      subtitle: 'Detail konfigurasi dan periode jadwal',
+      subtitle: 'Konfigurasi dan periode pelaksanaan',
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _infoRow('Jenis Inventaris', jenisNama),
-          _infoRow('Divisi', jadwal.jdwDivisi),
-          _infoRow('Pelaksana', jadwal.assignedNama),
-          _infoRow('Pabrik', _displayPabrikList(master, jadwal.jdwPabrikList)),
-          _infoRow('Awal Periode Jadwal',
-              _displayDate(jadwal.jdwCurrentPeriodStart)),
-          if (jadwal.jdwTglSelesai != null)
-            _infoRow(
-              'Akhir Periode Jadwal',
-              DateFormatter.toDisplay(jadwal.jdwTglSelesai),
-            ),
-          _infoRow('Jadwal berikutnya', _displayDate(jadwal.jdwNextDueDate)),
-          _infoRow('Capaian Per Jadwal', '$progressPct%'),
-          if (jadwal.jdwNotes != null && jadwal.jdwNotes!.trim().isNotEmpty)
-            _infoRow('Catatan', jadwal.jdwNotes!),
-          const Padding(
-            padding: EdgeInsets.only(bottom: 12),
-            child: Divider(height: 1),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth > 520;
+              if (isWide) {
+                return Wrap(
+                  spacing: 12,
+                  runSpacing: 10,
+                  children: infoItems.map((item) {
+                    return SizedBox(
+                      width: (constraints.maxWidth - 12) / 2,
+                      child: _compactInfoCell(item),
+                    );
+                  }).toList(),
+                );
+              } else {
+                return Column(
+                  children: infoItems.map((item) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _compactInfoCell(item),
+                    );
+                  }).toList(),
+                );
+              }
+            },
           ),
-          // ── Kartu Gap Jadwal ──────────────────────────────────
+          if (jadwal.jdwNotes != null &&
+              jadwal.jdwNotes!.trim().isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF3C7),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFFDE68A)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.sticky_note_2_outlined,
+                      size: 16, color: Color(0xFFD97706)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Catatan: ${jadwal.jdwNotes}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF92400E),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          const Divider(height: 1, color: AppColors.border),
+          const SizedBox(height: 12),
+          // Gap Cards
           if (showJadwalGap)
             _gapCard(
               icon: Icons.timelapse_outlined,
@@ -368,7 +644,7 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
                   ? 'Tidak ada jeda — jadwal dapat direalisasikan kapan saja.'
                   : 'Realisasi jeda $jadwalGapHari hari per ${jadwal.jdwFrekuensi}.',
               note: jadwalGapHari > 0
-                  ? '⚠ Dengan gap > 0 dan target banyak unit, pastikan jadwal tidak terblokir. '
+                  ? 'Dengan gap > 0 dan target banyak unit, pastikan jadwal tidak terblokir. '
                       'Pertimbangkan set 0 jika menargetkan banyak unit sekaligus.'
                   : null,
               color: jadwalGapHari > 0
@@ -381,8 +657,7 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
                   ? const Color(0xFFFED7AA)
                   : const Color(0xFFBBF7D0),
             ),
-          if (showJadwalGap) const SizedBox(height: 10),
-          // ── Kartu Gap per Mesin ───────────────────────────────
+          if (showJadwalGap) const SizedBox(height: 8),
           _gapCard(
             icon: Icons.schedule_outlined,
             title: 'Gap per Mesin (dari Jenis)',
@@ -405,6 +680,49 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
     );
   }
 
+  Widget _compactInfoCell(_InfoItem item) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        children: [
+          Icon(item.icon, size: 15, color: AppColors.textSecondary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.label,
+                  style: const TextStyle(
+                    fontSize: 10.5,
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  item.value,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _gapCard({
     required IconData icon,
     required String title,
@@ -414,74 +732,72 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
     required Color bgColor,
     required Color borderColor,
   }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: borderColor),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, size: 16, color: color),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: color,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: color,
+                    height: 1.35,
+                  ),
+                ),
+                if (note != null) ...[
+                  const SizedBox(height: 4),
                   Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: color,
+                    note,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFFC2410C),
+                      height: 1.35,
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: color,
-                      height: 1.4,
-                    ),
-                  ),
-                  if (note != null) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      note,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: Color(0xFFC2410C),
-                        height: 1.4,
-                      ),
-                    ),
-                  ],
                 ],
-              ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-
-  Widget _buildFilterPills() {
+  Widget _buildFilterPills(int countTotal, int countSudah, int countBelum) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            _filterChip(label: 'Semua', value: 'Semua'),
+            _filterChip(label: 'Semua ($countTotal)', value: 'Semua'),
             const SizedBox(width: 8),
-            _filterChip(label: 'Sudah Terealisasi', value: 'Sudah'),
+            _filterChip(
+                label: 'Sudah Terealisasi ($countSudah)', value: 'Sudah'),
             const SizedBox(width: 8),
-            _filterChip(label: 'Belum Terealisasi', value: 'Belum'),
+            _filterChip(
+                label: 'Belum Terealisasi ($countBelum)', value: 'Belum'),
           ],
         ),
       ),
@@ -500,7 +816,7 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
           });
         }
       },
-      selectedColor: AppColors.primary.withOpacity(0.12),
+      selectedColor: AppColors.primary.withValues(alpha: 0.12),
       backgroundColor: Colors.white,
       labelStyle: TextStyle(
         fontSize: 11.5,
@@ -522,17 +838,27 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
     BuildContext context, {
     required JadwalModel jadwal,
     required Set<int> selesaiInvIds,
+    required List<RealisasiModel> currentPeriodRealisasi,
   }) {
     final provider = context.read<JadwalProvider>();
     final master = context.read<MasterProvider>();
-    final jenisNama =
-        master.jenisById(jadwal.jdwJenisId)?.jenisNama ??
-            'ID ${jadwal.jdwJenisId}';
+    final jenisNama = master.jenisById(jadwal.jdwJenisId)?.jenisNama ??
+        'ID ${jadwal.jdwJenisId}';
+
+    final totalCount = provider.inventarisByJenis.length;
+    int sudahCount = 0;
+    for (final inv in provider.inventarisByJenis) {
+      final invIdRaw = inv['inv_id'];
+      final invId = invIdRaw is int ? invIdRaw : int.tryParse('$invIdRaw');
+      if (invId != null && selesaiInvIds.contains(invId)) {
+        sudahCount++;
+      }
+    }
+    final belumCount = totalCount - sudahCount;
 
     final filteredList = provider.inventarisByJenis.where((inv) {
       final invIdRaw = inv['inv_id'];
-      final invId =
-          invIdRaw is int ? invIdRaw : int.tryParse('$invIdRaw');
+      final invId = invIdRaw is int ? invIdRaw : int.tryParse('$invIdRaw');
       final sudahTerealisasi = invId != null && selesaiInvIds.contains(invId);
 
       if (_realisasiFilter == 'Sudah') {
@@ -545,16 +871,16 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
 
     return _sectionCard(
       title: 'Unit Inventaris $jenisNama',
-      subtitle: 'Total unit: ${provider.inventarisByJenis.length}',
+      subtitle: 'Total: $totalCount unit inventaris',
       child: provider.inventarisByJenis.isEmpty
           ? const EmptyState(message: 'Belum ada inventaris untuk jadwal ini')
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildFilterPills(),
+                _buildFilterPills(totalCount, sudahCount, belumCount),
                 if (filteredList.isEmpty)
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 30),
+                    padding: const EdgeInsets.symmetric(vertical: 24),
                     child: Center(
                       child: Text(
                         'Tidak ada unit yang cocok dengan filter "${_realisasiFilter == 'Sudah' ? 'Sudah Terealisasi' : 'Belum Terealisasi'}".',
@@ -566,205 +892,288 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
                     ),
                   )
                 else
-                  ...filteredList.map((inv) {
-                    final invIdRaw = inv['inv_id'];
-                    final invId =
-                        invIdRaw is int ? invIdRaw : int.tryParse('$invIdRaw');
-                    final isGapEligible = inv['inv_is_gap_eligible'] != false;
-                    final nextEligibleDate = inv['inv_next_eligible_date']?.toString();
-                    final sudahTerealisasi =
-                        invId != null && selesaiInvIds.contains(invId);
-                    final merk = (inv['inv_merk'] ?? '-').toString();
-                    final pic = (inv['inv_pic'] ?? '-').toString();
-                    RealisasiModel? realisasiItem;
+                  ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: filteredList.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final inv = filteredList[index];
+                      final invIdRaw = inv['inv_id'];
+                      final invId = invIdRaw is int
+                          ? invIdRaw
+                          : int.tryParse('$invIdRaw');
+                      final isGapEligible =
+                          inv['inv_is_gap_eligible'] != false;
+                      final nextEligibleDate =
+                          inv['inv_next_eligible_date']?.toString();
+                      final sudahTerealisasi =
+                          invId != null && selesaiInvIds.contains(invId);
+                      final merk = (inv['inv_merk'] ?? '-').toString();
+                      final pic = (inv['inv_pic'] ?? '-').toString();
+                      RealisasiModel? realisasiItem;
 
-                    if (invId != null) {
-                      for (final item in provider.realisasiList) {
-                        if (item.realInvId == invId &&
-                            item.realStatus == 'Selesai') {
-                          realisasiItem = item;
-                          break;
+                      if (invId != null) {
+                        for (final item in currentPeriodRealisasi) {
+                          if (item.realInvId == invId) {
+                            realisasiItem = item;
+                            break;
+                          }
                         }
                       }
-                    }
 
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: Card(
-                        margin: EdgeInsets.zero,
-                        child: Padding(
-                          padding: const EdgeInsets.all(14),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Container(
-                                    width: 40,
-                                    height: 40,
-                                    decoration: BoxDecoration(
-                                      color:
-                                          AppColors.primary.withValues(alpha: 0.1),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: const Icon(
-                                      Icons.inventory_2_outlined,
-                                      color: AppColors.primary,
-                                      size: 20,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          (inv['inv_nama'] ?? '-').toString(),
-                                          style: const TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          '${inv['inv_serial_number'] ?? inv['inv_no'] ?? '-'} · ${master.displayPabrik(inv['inv_pabrik_kode']?.toString())}',
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            color: AppColors.textSecondary,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Wrap(
-                                          spacing: 6,
-                                          runSpacing: 6,
-                                          children: [
-                                            _infoChip(
-                                              icon:
-                                                  Icons.branding_watermark_outlined,
-                                              text: 'Merk: $merk',
-                                            ),
-                                            _infoChip(
-                                              icon: Icons.person_outline,
-                                              text: 'PIC: $pic',
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              Row(
-                                children: [
-                                  Icon(
-                                    sudahTerealisasi
-                                        ? Icons.check_circle_outline
-                                        : (!isGapEligible
-                                            ? Icons.error_outline_rounded
-                                            : Icons.schedule_outlined),
-                                    size: 14,
-                                    color: sudahTerealisasi
-                                        ? AppColors.success
-                                        : (!isGapEligible
-                                            ? Colors.orange.shade700
-                                            : AppColors.textSecondary),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    sudahTerealisasi
-                                        ? 'Sudah terealisasi'
-                                        : (!isGapEligible
-                                            ? 'Belum layak (Jeda hingga: ${_displayDate(nextEligibleDate)})'
-                                            : 'Belum terealisasi'),
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: sudahTerealisasi
-                                          ? AppColors.success
-                                          : (!isGapEligible
-                                              ? Colors.orange.shade700
-                                              : AppColors.textSecondary),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              if (sudahTerealisasi && realisasiItem != null) ...[
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.event_outlined,
-                                      size: 14,
-                                      color: AppColors.textSecondary,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Expanded(
-                                      child: Text(
-                                        'Realisasi Terakhir: ${_displayDate(realisasiItem.realTgl)}',
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          color: AppColors.textSecondary,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.person_outline,
-                                      size: 14,
-                                      color: AppColors.textSecondary,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Expanded(
-                                      child: Text(
-                                        'Direalisasikan oleh: ${(realisasiItem.teknisi?['user_nama'] ?? '-').toString()}',
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          color: AppColors.textSecondary,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                              const SizedBox(height: 10),
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: sudahTerealisasi && realisasiItem != null
-                                    ? OutlinedButton.icon(
-                                        onPressed: () =>
-                                            _openRealisasiDetail(realisasiItem!),
-                                        icon: const Icon(Icons.visibility_outlined,
-                                            size: 16),
-                                        label: const Text('Lihat Detail'),
-                                      )
-                                    : const Text(
-                                        'Menunggu realisasi',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: AppColors.textSecondary,
-                                        ),
-                                      ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  }),
+                      return _buildInventarisItemCard(
+                        inv: inv,
+                        sudahTerealisasi: sudahTerealisasi,
+                        isGapEligible: isGapEligible,
+                        nextEligibleDate: nextEligibleDate,
+                        merk: merk,
+                        pic: pic,
+                        realisasiItem: realisasiItem,
+                        master: master,
+                        onTapDetail: realisasiItem != null
+                            ? () => _openRealisasiDetail(realisasiItem!)
+                            : null,
+                      );
+                    },
+                  ),
               ],
             ),
+    );
+  }
+
+  Widget _buildInventarisItemCard({
+    required Map<String, dynamic> inv,
+    required bool sudahTerealisasi,
+    required bool isGapEligible,
+    required String? nextEligibleDate,
+    required String merk,
+    required String pic,
+    required RealisasiModel? realisasiItem,
+    required MasterProvider master,
+    required VoidCallback? onTapDetail,
+  }) {
+    final statusColor = sudahTerealisasi
+        ? const Color(0xFF16A34A)
+        : (!isGapEligible
+            ? const Color(0xFFD97706)
+            : AppColors.textSecondary);
+
+    final statusBg = sudahTerealisasi
+        ? const Color(0xFFF0FDF4)
+        : (!isGapEligible
+            ? const Color(0xFFFFF7ED)
+            : const Color(0xFFF8FAFC));
+
+    final statusBorder = sudahTerealisasi
+        ? const Color(0xFFBBF7D0)
+        : (!isGapEligible
+            ? const Color(0xFFFED7AA)
+            : const Color(0xFFE2E8F0));
+
+    final statusText = sudahTerealisasi
+        ? 'Sudah Terealisasi'
+        : (!isGapEligible
+            ? 'Belum Layak (Jeda s/d ${_displayDate(nextEligibleDate)})'
+            : 'Belum Terealisasi');
+
+    final statusIcon = sudahTerealisasi
+        ? Icons.check_circle_rounded
+        : (!isGapEligible
+            ? Icons.error_outline_rounded
+            : Icons.schedule_rounded);
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: sudahTerealisasi
+              ? const Color(0xFFBBF7D0)
+              : const Color(0xFFE2E8F0),
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x04000000),
+            blurRadius: 6,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Row: Icon + Title & Status Badge
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: statusBg,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: statusBorder),
+                ),
+                child: Icon(
+                  Icons.inventory_2_outlined,
+                  color: statusColor,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      (inv['inv_nama'] ?? '-').toString(),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${inv['inv_serial_number'] ?? inv['inv_no'] ?? '-'} · ${master.displayPabrik(inv['inv_pabrik_kode']?.toString())}',
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: statusBg,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: statusBorder),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(statusIcon, size: 12, color: statusColor),
+                    const SizedBox(width: 4),
+                    Text(
+                      statusText,
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                        color: statusColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Chips Row
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              _infoChip(
+                icon: Icons.branding_watermark_outlined,
+                text: 'Merk: $merk',
+              ),
+              _infoChip(
+                icon: Icons.person_outline,
+                text: 'PIC: $pic',
+              ),
+            ],
+          ),
+          if (sudahTerealisasi && realisasiItem != null) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0FDF4),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFDCFCE7)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Realisasi: ${_displayDate(realisasiItem.realTgl)}',
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF15803D),
+                          ),
+                        ),
+                        Text(
+                          'Pelaksana: ${_displayTeknisi(master, realisasiItem)}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(
+                    height: 32,
+                    child: OutlinedButton.icon(
+                      onPressed: onTapDetail,
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        side: const BorderSide(color: Color(0xFF86EFAC)),
+                        backgroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      icon: const Icon(Icons.visibility_outlined,
+                          size: 14, color: Color(0xFF15803D)),
+                      label: const Text(
+                        'Lihat Detail',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF15803D),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
   String _displayPabrikList(MasterProvider master, List<String> codes) {
     if (codes.isEmpty) return '-';
     return codes.map((c) => master.displayPabrik(c)).join(', ');
+  }
+
+  String _displayTeknisi(MasterProvider master, RealisasiModel item) {
+    final nameFromRelation = item.teknisi?['user_nama']?.toString().trim();
+    if (nameFromRelation != null && nameFromRelation.isNotEmpty) {
+      return nameFromRelation;
+    }
+    if (item.realTeknisiId > 0) {
+      try {
+        final user =
+            master.userList.firstWhere((u) => u.userId == item.realTeknisiId);
+        if (user.userNama.isNotEmpty) return user.userNama;
+      } catch (_) {}
+      return 'ID ${item.realTeknisiId}';
+    }
+    return '-';
   }
 
   Widget _sectionCard({
@@ -776,13 +1185,13 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x0A000000),
+            color: Color(0x04000000),
             blurRadius: 10,
-            offset: Offset(0, 4),
+            offset: Offset(0, 3),
           ),
         ],
       ),
@@ -791,9 +1200,9 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
         children: [
           Text(
             title,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           Text(
             subtitle,
             style: const TextStyle(
@@ -801,106 +1210,8 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
               color: AppColors.textSecondary,
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           child,
-        ],
-      ),
-    );
-  }
-
-  Widget _heroMetric(String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 11,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(
-            color: AppColors.textPrimary,
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _statCard({
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color accent,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 30,
-            height: 30,
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, size: 16, color: accent),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            value,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12,
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _infoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 132,
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -911,17 +1222,17 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
     required String text,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: AppColors.bgGray,
-        borderRadius: BorderRadius.circular(10),
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
             icon,
-            size: 12,
+            size: 11,
             color: AppColors.textSecondary,
           ),
           const SizedBox(width: 4),
@@ -930,7 +1241,7 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
             style: const TextStyle(
               fontSize: 11,
               color: AppColors.textSecondary,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],
@@ -946,24 +1257,24 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
   Widget _buildSkeleton(bool isDesktop, double horizontalPadding) {
     return AppShimmer(
       child: ListView(
-        padding: EdgeInsets.fromLTRB(horizontalPadding, 16, horizontalPadding, 28),
+        padding:
+            EdgeInsets.fromLTRB(horizontalPadding, 16, horizontalPadding, 28),
         physics: const NeverScrollableScrollPhysics(),
         children: [
-          // 1. Hero Card Placeholder
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.4),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.border.withOpacity(0.3)),
+              color: Colors.white.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.border.withValues(alpha: 0.3)),
             ),
-            child: Column(
+            child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Row(
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    AppSkeletonSquircle(width: 44, height: 44, borderRadius: 12),
+                    AppSkeletonSquircle(width: 42, height: 42, borderRadius: 12),
                     SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -971,56 +1282,36 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
                         children: [
                           AppSkeletonLine(width: 180, height: 18),
                           SizedBox(height: 8),
-                          AppSkeletonLine(width: 120, height: 12),
+                          AppSkeletonLine(width: 140, height: 12),
                         ],
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.border.withOpacity(0.2)),
-                  ),
-                  child: const Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          AppSkeletonLine(width: 50, height: 14),
-                          AppSkeletonLine(width: 50, height: 14),
-                          AppSkeletonLine(width: 50, height: 14),
-                        ],
-                      ),
-                      SizedBox(height: 12),
-                      AppSkeletonSquircle(width: double.infinity, height: 10, borderRadius: 99),
-                    ],
-                  ),
+                SizedBox(height: 16),
+                AppSkeletonSquircle(width: double.infinity, height: 40, borderRadius: 12),
+                SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(child: AppSkeletonSquircle(width: double.infinity, height: 48, borderRadius: 10)),
+                    SizedBox(width: 8),
+                    Expanded(child: AppSkeletonSquircle(width: double.infinity, height: 48, borderRadius: 10)),
+                    SizedBox(width: 8),
+                    Expanded(child: AppSkeletonSquircle(width: double.infinity, height: 48, borderRadius: 10)),
+                    SizedBox(width: 8),
+                    Expanded(child: AppSkeletonSquircle(width: double.infinity, height: 48, borderRadius: 10)),
+                  ],
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
-          // 2. Stats Row Placeholder
-          Row(
-            children: List.generate(4, (index) => const Expanded(
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 4),
-                child: AppSkeletonSquircle(width: double.infinity, height: 60, borderRadius: 12),
-              ),
-            )),
-          ),
-          const SizedBox(height: 16),
-          // 3. Info Section Card Placeholder
+          const SizedBox(height: 14),
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.4),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: AppColors.border.withOpacity(0.3)),
+              color: Colors.white.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.border.withValues(alpha: 0.3)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1028,28 +1319,25 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
                 const AppSkeletonLine(width: 140, height: 16),
                 const SizedBox(height: 6),
                 const AppSkeletonLine(width: 180, height: 12),
-                const SizedBox(height: 20),
-                ...List.generate(5, (index) => const Padding(
-                  padding: EdgeInsets.only(bottom: 12),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      AppSkeletonLine(width: 100, height: 14),
-                      AppSkeletonLine(width: 120, height: 14),
-                    ],
+                const SizedBox(height: 16),
+                ...List.generate(
+                  4,
+                  (index) => const Padding(
+                    padding: EdgeInsets.only(bottom: 8),
+                    child: AppSkeletonSquircle(
+                        width: double.infinity, height: 38, borderRadius: 10),
                   ),
-                )),
+                ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
-          // 4. Inventaris Section Placeholder (1-2 item list card placeholders)
+          const SizedBox(height: 14),
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.4),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: AppColors.border.withOpacity(0.3)),
+              color: Colors.white.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.border.withValues(alpha: 0.3)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1058,25 +1346,14 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
                 const SizedBox(height: 6),
                 const AppSkeletonLine(width: 100, height: 12),
                 const SizedBox(height: 16),
-                ...List.generate(2, (index) => const Padding(
-                  padding: EdgeInsets.only(bottom: 12),
-                  child: Row(
-                    children: [
-                      AppSkeletonSquircle(width: 40, height: 40, borderRadius: 12),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            AppSkeletonLine(width: 150, height: 14),
-                            SizedBox(height: 6),
-                            AppSkeletonLine(width: 100, height: 12),
-                          ],
-                        ),
-                      ),
-                    ],
+                ...List.generate(
+                  2,
+                  (index) => const Padding(
+                    padding: EdgeInsets.only(bottom: 10),
+                    child: AppSkeletonSquircle(
+                        width: double.infinity, height: 72, borderRadius: 14),
                   ),
-                )),
+                ),
               ],
             ),
           ),
@@ -1084,4 +1361,11 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
       ),
     );
   }
+}
+
+class _InfoItem {
+  final IconData icon;
+  final String label;
+  final String value;
+  _InfoItem({required this.icon, required this.label, required this.value});
 }

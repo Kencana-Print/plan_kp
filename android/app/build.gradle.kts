@@ -55,15 +55,37 @@ android {
 
     buildTypes {
         getByName("release") {
-
-            isMinifyEnabled = false
-            isShrinkResources = false
-
+            isMinifyEnabled = true
+            isShrinkResources = true
+            isCrunchPngs = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
             signingConfig = signingConfigs.getByName("release")
+        }
+    }
+
+    // Strip unnecessary files to reduce APK size
+    packaging {
+        resources {
+            excludes += setOf(
+                "META-INF/DEPENDENCIES",
+                "META-INF/LICENSE",
+                "META-INF/LICENSE.txt",
+                "META-INF/NOTICE",
+                "META-INF/NOTICE.txt",
+                "META-INF/*.kotlin_module",
+                "META-INF/versions/**",
+                "kotlin/**.kotlin_builtins",
+                "kotlin/**.kotlin_metadata",
+                "DebugProbesKt.bin",       // kotlinx-coroutines debug info
+                "kotlin-tooling-metadata.json"
+            )
         }
     }
 }
 
 flutter {
     source = "../.."
-}
+}

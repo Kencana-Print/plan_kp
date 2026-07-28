@@ -2,20 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppColors {
-  static const primary = Color(0xFF1864D8);
-  static const primaryDark = Color(0xFF0B4DB3);
-  static const accent = Color(0xFF2F7FF9);
-  static const primarySoft = Color(0xFFE8F1FF);
-  static const surface = Color(0xFFF5F8FC);
-  static const surfaceAlt = Color(0xFFECF2FA);
-  static const success = Color(0xFF16A34A);
-  static const warning = Color(0xFFF59E0B);
-  static const danger = Color(0xFFDC2626);
-  static const bgGray = Color(0xFFF1F5F9);
-  static const textPrimary = Color(0xFF0F172A);
-  static const textSecondary = Color(0xFF64748B);
-  static const border = Color(0xFFE2E8F0);
-  static const white = Color(0xFFFFFFFF);
+  static const primary = Color.fromRGBO(40, 90, 200, 1);
+  static const primaryDark = Color.fromRGBO(20, 50, 120, 1);
+  static const accent = Color.fromRGBO(56, 108, 232, 1);
+  static const primarySoft = Color.fromRGBO(235, 243, 255, 1);
+  static const surface = Color.fromRGBO(235, 243, 255, 1);
+  static const surfaceAlt = Color.fromRGBO(247, 245, 245, 1);
+  static const success = Color.fromRGBO(0, 150, 60, 1);
+  static const warning = Color.fromRGBO(190, 140, 20, 1);
+  static const danger = Color.fromRGBO(220, 30, 50, 1);
+  static const bgGray = Color.fromRGBO(235, 243, 255, 1);
+  static const textPrimary = Color.fromRGBO(15, 23, 42, 1);
+  static const textSecondary = Color.fromRGBO(51, 65, 85, 1);
+  static const border = Color.fromRGBO(233, 231, 231, 1);
+  static const white = Color.fromRGBO(255, 255, 255, 1);
 }
 
 class AppBreakpoints {
@@ -35,42 +35,60 @@ class AppBreakpoints {
 }
 
 class AppSpacing {
-  static const xs = 8.0;
-  static const sm = 12.0;
-  static const md = 16.0;
-  static const lg = 24.0;
-  static const xl = 32.0;
+  static const xxs = 2.0;
+  static const xs = 4.0;
+  static const sm = 8.0;
+  static const md = 12.0;
+  static const lg = 16.0;
+  static const xl = 24.0;
 }
 
 class AppRadius {
-  static const sm = 8.0;
-  static const md = 14.0;
-  static const lg = 20.0;
-  static const xl = 24.0;
-  static const full = 999.0;
+  static const sm = 4.0;
+  static const md = 8.0;
+  static const lg = 10.0;
+  static const xl = 12.0;
+  static const full = 9999.0;
 }
 
 class AppTheme {
   static ThemeData get light {
     final textTheme = GoogleFonts.plusJakartaSansTextTheme().copyWith(
       titleLarge: GoogleFonts.plusJakartaSans(
-        fontSize: 22,
+        fontSize: 20,
         fontWeight: FontWeight.w700,
         color: AppColors.textPrimary,
+        height: 1.25,
       ),
       titleMedium: GoogleFonts.plusJakartaSans(
         fontSize: 16,
         fontWeight: FontWeight.w600,
         color: AppColors.textPrimary,
+        height: 1.3,
       ),
-      bodyMedium: GoogleFonts.plusJakartaSans(
+      titleSmall: GoogleFonts.plusJakartaSans(
         fontSize: 14,
+        fontWeight: FontWeight.w600,
+        color: AppColors.textPrimary,
+        height: 1.35,
+      ),
+      bodyLarge: GoogleFonts.plusJakartaSans(
+        fontSize: 13,
         fontWeight: FontWeight.w500,
         color: AppColors.textPrimary,
+        height: 1.4,
+      ),
+      bodyMedium: GoogleFonts.plusJakartaSans(
+        fontSize: 12,
+        fontWeight: FontWeight.w400,
+        color: AppColors.textSecondary,
+        height: 1.4,
       ),
       bodySmall: GoogleFonts.plusJakartaSans(
-        fontSize: 12,
+        fontSize: 11,
+        fontWeight: FontWeight.w500,
         color: AppColors.textSecondary,
+        height: 1.35,
       ),
     );
 
@@ -85,23 +103,25 @@ class AppTheme {
       textTheme: textTheme,
       scaffoldBackgroundColor: AppColors.surface,
       appBarTheme: AppBarTheme(
-        backgroundColor: AppColors.white,
-        foregroundColor: AppColors.textPrimary,
+        backgroundColor: AppColors.primaryDark,
+        foregroundColor: AppColors.white,
         elevation: 0,
         scrolledUnderElevation: 0,
         titleTextStyle: GoogleFonts.plusJakartaSans(
-          color: AppColors.textPrimary,
-          fontSize: 18,
+          color: AppColors.white,
+          fontSize: 16,
           fontWeight: FontWeight.w700,
         ),
       ),
       chipTheme: ChipThemeData(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.full)),
         side: const BorderSide(color: AppColors.border),
         backgroundColor: AppColors.white,
         selectedColor: AppColors.primarySoft,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         labelStyle: GoogleFonts.plusJakartaSans(
-          fontSize: 12,
+          fontSize: 11,
           fontWeight: FontWeight.w600,
           color: AppColors.textSecondary,
         ),
@@ -110,28 +130,30 @@ class AppTheme {
         labelColor: AppColors.primary,
         unselectedLabelColor: AppColors.textSecondary,
         indicator: BoxDecoration(
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: BorderRadius.circular(AppRadius.full),
           color: AppColors.primarySoft,
         ),
         labelStyle: GoogleFonts.plusJakartaSans(
           fontWeight: FontWeight.w700,
-          fontSize: 13,
+          fontSize: 12,
         ),
         unselectedLabelStyle: GoogleFonts.plusJakartaSans(
           fontWeight: FontWeight.w600,
-          fontSize: 13,
+          fontSize: 12,
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
           foregroundColor: AppColors.white,
-          minimumSize: const Size.fromHeight(52),
+          minimumSize: const Size.fromHeight(42),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          elevation: 0,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(AppRadius.md),
           ),
           textStyle: GoogleFonts.plusJakartaSans(
-            fontSize: 15,
+            fontSize: 13,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -140,36 +162,50 @@ class AppTheme {
         filled: true,
         fillColor: AppColors.white,
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 14,
+          horizontal: 12,
+          vertical: 10,
+        ),
+        hintStyle: GoogleFonts.plusJakartaSans(
+          fontSize: 12,
+          fontWeight: FontWeight.w400,
+          color: AppColors.textSecondary,
         ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           borderSide: const BorderSide(color: AppColors.border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           borderSide: const BorderSide(color: AppColors.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppColors.primary, width: 2),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           borderSide: const BorderSide(color: AppColors.danger),
         ),
         labelStyle: GoogleFonts.plusJakartaSans(
           color: AppColors.textSecondary,
+          fontSize: 12,
           fontWeight: FontWeight.w600,
+        ),
+      ),
+      dropdownMenuTheme: DropdownMenuThemeData(
+        textStyle: GoogleFonts.plusJakartaSans(
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+          color: AppColors.textPrimary,
         ),
       ),
       cardTheme: CardThemeData(
         color: AppColors.white,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
+        margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           side: const BorderSide(color: AppColors.border),
         ),
       ),
@@ -178,9 +214,11 @@ class AppTheme {
         backgroundColor: AppColors.textPrimary,
         contentTextStyle: GoogleFonts.plusJakartaSans(
           color: AppColors.white,
+          fontSize: 12,
           fontWeight: FontWeight.w600,
         ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.md)),
       ),
     );
   }

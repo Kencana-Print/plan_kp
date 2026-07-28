@@ -334,7 +334,22 @@ class _RealisasiHistoryScreenState extends State<RealisasiHistoryScreen> {
     final maxContentWidth = isDesktop ? 1180.0 : 860.0;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Realisasi')),
+      appBar: AppBar(
+        title: const Text('Realisasi'),
+        actions: [
+          IconButton(
+            tooltip: 'Export Laporan PDF',
+            icon: const Icon(Icons.picture_as_pdf_rounded),
+            onPressed: () {
+              AppNotifier.showWarning(
+                context,
+                'Fitur ini akan rilis di versi selanjutnya. Info lebih lanjut silahkan hubungi divisi IT.',
+              );
+            },
+          ),
+          const SizedBox(width: 4),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: _loadData,
         child: Consumer<JadwalProvider>(
@@ -616,7 +631,14 @@ class _RealisasiHistoryScreenState extends State<RealisasiHistoryScreen> {
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text('⚠️ ', style: TextStyle(fontSize: 14)),
+                                  const Padding(
+                                    padding: EdgeInsets.only(top: 2, right: 6),
+                                    child: Icon(
+                                      Icons.warning_amber_rounded,
+                                      size: 16,
+                                      color: Color(0xFF92400E),
+                                    ),
+                                  ),
                                   Expanded(
                                     child: Text(
                                       'Catatan: Terdapat realisasi jadwal Mingguan pada minggu ke-${sortedCrossMonthWeeks.join(', ')} yang dicatat lintas bulan. Progress mingguan tetap dihitung sebagai 1 periode.',
@@ -715,14 +737,13 @@ class _RealisasiHistoryScreenState extends State<RealisasiHistoryScreen> {
                                 final invJenisId = item.jadwal?['jdw_inv_jenis_id'] ?? 0;
                                 final invId = item.realInvId;
                                 final teknisi = (item.teknisi?['user_nama'] ?? '').toString().trim();
-                                final jamSelesai = item.realJamSelesai ?? '-';
                                 final kondisiAkhir = item.realKondisiAkhir ?? '-';
                                 final keterangan = item.realKeterangan ?? '-';
 
                                 return Card(
                                   margin: const EdgeInsets.only(bottom: 12),
                                   shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
+                                    borderRadius: BorderRadius.circular(AppRadius.lg),
                                     side: BorderSide(
                                         color: AppColors.border.withValues(alpha: 0.8)),
                                   ),
@@ -742,7 +763,7 @@ class _RealisasiHistoryScreenState extends State<RealisasiHistoryScreen> {
                                                 color: AppColors.warning
                                                     .withValues(alpha: 0.1),
                                                 borderRadius:
-                                                    BorderRadius.circular(6),
+                                                    BorderRadius.circular(AppRadius.sm),
                                               ),
                                               child: const Text(
                                                 'Menunggu TTD PIC',
@@ -779,7 +800,7 @@ class _RealisasiHistoryScreenState extends State<RealisasiHistoryScreen> {
                                           const SizedBox(height: 8),
                                           _buildDetailRow(Icons.person_outline_rounded, 'Teknisi', teknisi.isEmpty ? '-' : teknisi),
                                           _buildDetailRow(Icons.inventory_2_outlined, 'Aset', invNama),
-                                          _buildDetailRow(Icons.access_time_rounded, 'Jam', '$jamMulai'),
+                                          _buildDetailRow(Icons.access_time_rounded, 'Jam', jamMulai),
                                           _buildDetailRow(Icons.info_outline_rounded, 'Kondisi Akhir', kondisiAkhir),
                                           _buildDetailRow(Icons.description_outlined, 'Keterangan', keterangan),
                                         ] else ...[
@@ -1008,9 +1029,21 @@ class _RealisasiHistoryScreenState extends State<RealisasiHistoryScreen> {
         targetCount: target, doneCount: realisasiList.length);
   }
 
-  DateTime? _findNextWorkingDay(DateTime date, DateTime limit, Set<int> holidays) {
+  static const List<String> _divisiSixDays = ['GA', 'TEKNISI', 'MAINTENANCE', 'PRODUKSI', 'WORKSHOP'];
+
+  bool _isWorkingDay(DateTime date, String? divisi, Set<int> holidays) {
+    if (holidays.contains(date.day)) return false;
+    if (date.weekday == DateTime.sunday) return false;
+    if (date.weekday == DateTime.saturday) {
+      final norm = (divisi ?? '').trim().toUpperCase();
+      return _divisiSixDays.any((d) => d.toUpperCase() == norm);
+    }
+    return true;
+  }
+
+  DateTime? _findNextWorkingDay(DateTime date, DateTime limit, String? divisi, Set<int> holidays) {
     var d = date;
-    while (holidays.contains(d.day)) {
+    while (!_isWorkingDay(d, divisi, holidays)) {
       d = d.add(const Duration(days: 1));
       if (d.isAfter(limit)) return null;
     }
@@ -1030,18 +1063,19 @@ class _RealisasiHistoryScreenState extends State<RealisasiHistoryScreen> {
 
     if (rangeEnd.isBefore(rangeStart)) return [];
     List<DateTime> dates = [];
+    final divisi = j.jdwDivisi;
 
     if (j.jdwFrekuensi == 'Harian') {
       for (var d = rangeStart;
           !d.isAfter(rangeEnd);
           d = d.add(const Duration(days: 1))) {
-        if (!holidays.contains(d.day)) dates.add(d);
+        if (_isWorkingDay(d, divisi, holidays)) dates.add(d);
       }
     } else if (j.jdwFrekuensi == 'Mingguan') {
       var curr = jStart;
       while (!curr.isAfter(rangeEnd)) {
         if (!curr.isBefore(rangeStart)) {
-          final nextWork = _findNextWorkingDay(curr, rangeEnd, holidays);
+          final nextWork = _findNextWorkingDay(curr, rangeEnd, divisi, holidays);
           if (nextWork != null) {
             dates.add(nextWork);
           }
@@ -1049,7 +1083,7 @@ class _RealisasiHistoryScreenState extends State<RealisasiHistoryScreen> {
         curr = curr.add(const Duration(days: 7));
       }
     } else if (j.jdwFrekuensi == 'Bulanan') {
-      final nextWork = _findNextWorkingDay(rangeStart, rangeEnd, holidays);
+      final nextWork = _findNextWorkingDay(rangeStart, rangeEnd, divisi, holidays);
       if (nextWork != null) {
         dates.add(nextWork);
       }
@@ -1586,14 +1620,21 @@ class _UserFilterCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         child: DropdownButtonFormField<int?>(
           value: selectedUserId,
+          style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
           decoration: const InputDecoration(
               labelText: 'Pilih User',
               prefixIcon: Icon(Icons.person_outline),
               border: InputBorder.none),
           items: [
-            const DropdownMenuItem(value: null, child: Text('Semua User')),
-            ...users.map((u) =>
-                DropdownMenuItem(value: u.userId, child: Text(u.userName))),
+            const DropdownMenuItem(
+                value: null,
+                child: Text('Semua User',
+                    style: TextStyle(fontSize: 13, color: AppColors.textPrimary))),
+            ...users.map((u) => DropdownMenuItem(
+                value: u.userId,
+                child: Text(u.userName,
+                    style:
+                        const TextStyle(fontSize: 13, color: AppColors.textPrimary)))),
           ],
           onChanged: onChanged,
         ),

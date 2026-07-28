@@ -16,7 +16,7 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  static const _pageBg = Color(0xFFF8FAFC);
+  static const _pageBg = AppColors.surface;
   final _formKey = GlobalKey<FormState>();
   final _namaCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
@@ -185,16 +185,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Widget _buildFormCard() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.border.withValues(alpha: 0.8)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.025),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -203,15 +203,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
+            Text(
               'Registrasi',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
-              ),
+              style: Theme.of(context).textTheme.titleLarge,
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: AppSpacing.md),
             _buildInputField(
               controller: _namaCtrl,
               label: 'Nama Lengkap',
@@ -221,7 +217,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               validator: (v) =>
                   v == null || v.trim().isEmpty ? 'Nama wajib diisi' : null,
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: AppSpacing.sm),
             _buildInputField(
               controller: _nikCtrl,
               label: 'NIK',
@@ -230,7 +226,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               validator: (v) =>
                   v == null || v.trim().isEmpty ? 'NIK wajib diisi' : null,
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: AppSpacing.sm),
             _buildDropdownField<String>(
               label: 'Divisi',
               icon: Icons.account_tree_outlined,
@@ -249,14 +245,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
               validator: (v) =>
                   v == null || v.isEmpty ? 'Divisi wajib diisi' : null,
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: AppSpacing.sm),
             _loadingPabrik
                 ? const SizedBox(
-                    height: 52,
+                    height: 44,
                     child: Center(
                       child: SizedBox(
-                        width: 22,
-                        height: 22,
+                        width: 20,
+                        height: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       ),
                     ),
@@ -278,7 +274,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     },
                     validator: (v) => v == null ? 'Cabang wajib diisi' : null,
                   ),
-            const SizedBox(height: 14),
+            const SizedBox(height: AppSpacing.sm),
             _buildInputField(
               controller: _passwordCtrl,
               label: 'Password',
@@ -290,33 +286,33 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ? 'Password minimal 3 karakter'
                   : null,
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: AppSpacing.md),
             Consumer<AuthProvider>(
               builder: (_, auth, __) => ElevatedButton(
                 onPressed: auth.loading ? null : _submit,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: AppColors.white,
-                  minimumSize: const Size(double.infinity, 54),
+                  minimumSize: const Size(double.infinity, 44),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
+                      borderRadius: BorderRadius.circular(AppRadius.md)),
                   elevation: 0,
                 ),
                 child: auth.loading
                     ? const SizedBox(
-                        height: 24,
-                        width: 24,
+                        height: 20,
+                        width: 20,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2.5, color: Colors.white),
+                            strokeWidth: 2, color: Colors.white),
                       )
                     : const Text(
                         'Daftar',
                         style: TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 15),
+                            fontWeight: FontWeight.w700, fontSize: 14),
                       ),
               ),
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: AppSpacing.md),
             _buildFooterLink(),
           ],
         ),
@@ -343,37 +339,37 @@ class _RegisterScreenState extends State<RegisterScreen> {
       keyboardType: keyboardType,
       textCapitalization: textCapitalization,
       inputFormatters: inputFormatters,
-      style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600),
+      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w500, fontSize: 14),
-        prefixIcon: Icon(icon, color: AppColors.textSecondary, size: 20),
+        labelStyle: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w500, fontSize: 12),
+        prefixIcon: Icon(icon, color: AppColors.textSecondary, size: 18),
         suffixIcon: isPassword
             ? IconButton(
                 icon: Icon(obscure
                     ? Icons.visibility_off_outlined
                     : Icons.visibility_outlined),
                 onPressed: onToggle,
-                iconSize: 20,
+                iconSize: 18,
                 color: AppColors.textSecondary,
               )
             : null,
         filled: true,
         fillColor: AppColors.surface,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
         ),
         contentPadding:
-            const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+            const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
       ),
     );
   }
@@ -387,31 +383,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
     required String? Function(T?) validator,
   }) {
     return DropdownButtonFormField<T>(
-      initialValue: value,
+      value: value,
       items: items,
       onChanged: onChanged,
       validator: validator,
-      style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w500, fontSize: 14),
-        prefixIcon: Icon(icon, color: AppColors.textSecondary, size: 20),
+        labelStyle: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w500, fontSize: 12),
+        prefixIcon: Icon(icon, color: AppColors.textSecondary, size: 18),
         filled: true,
         fillColor: AppColors.surface,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
         ),
         contentPadding:
-            const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+            const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
       ),
     );
   }
@@ -420,20 +416,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Text(
+        Text(
           'Sudah punya akun?',
-          style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w500, fontSize: 14),
+          style: Theme.of(context).textTheme.bodyMedium,
         ),
         TextButton(
           onPressed: _backToLogin,
           style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            visualDensity: VisualDensity.compact,
           ),
           child: const Text(
             'Masuk',
             style: TextStyle(
               fontWeight: FontWeight.w700,
-              fontSize: 14,
+              fontSize: 13,
               color: AppColors.primary,
             ),
           ),

@@ -27,7 +27,7 @@ class UpdateDownloader {
 
   UpdateDownloader({Dio? dio}) : _dio = dio ?? Dio();
 
-  // ─── Cek apakah APK versi tertentu sudah ada di storage lokal ───
+  // ─── Cek apakah APK versi tertentu sudah ada di storage lokal & valid ───
   Future<String?> checkLocalApk({
     required String downloadUrl,
     required String versionName,
@@ -38,9 +38,30 @@ class UpdateDownloader {
 
       for (final dir in dirs) {
         final file = File('${dir.path}/$fileName');
-        if (await file.exists() && await file.length() > 0) {
-          debugPrint('[UpdateDownloader] APK lokal ditemukan: ${file.path}');
-          return file.path;
+        if (await file.exists()) {
+          final localLength = await file.length();
+          if (localLength == 0) {
+            try {
+              await file.delete();
+            } catch (_) {}
+            continue;
+          }
+
+          // Cek kelengkapan file via HTTP HEAD Content-Length jika memungkinkan
+          final isComplete = await _verifyFileCompleteness(
+            downloadUrl: downloadUrl,
+            fileLength: localLength,
+          );
+
+          if (isComplete) {
+            debugPrint('[UpdateDownloader] APK lokal valid & lengkap: ${file.path} ($localLength bytes)');
+            return file.path;
+          } else {
+            debugPrint('[UpdateDownloader] APK lokal tidak komplit/corrupt ($localLength bytes). Mengapus file tidak komplit...');
+            try {
+              await file.delete();
+            } catch (_) {}
+          }
         }
       }
     } catch (e) {
@@ -49,20 +70,53 @@ class UpdateDownloader {
     return null;
   }
 
+  /// Verifikasi kelengkapan ukuran file lokal dengan header Content-Length dari server
+  Future<bool> _verifyFileCompleteness({
+    required String downloadUrl,
+    required int fileLength,
+  }) async {
+    try {
+      final response = await _dio.head(
+        downloadUrl,
+        options: Options(
+          sendTimeout: const Duration(seconds: 4),
+          receiveTimeout: const Duration(seconds: 4),
+          followRedirects: true,
+        ),
+      );
+
+      final contentLengthHeader = response.headers.value('content-length');
+      if (contentLengthHeader != null) {
+        final expectedLength = int.tryParse(contentLengthHeader);
+        if (expectedLength != null && expectedLength > 0) {
+          final isMatch = fileLength == expectedLength;
+          debugPrint(
+              '[UpdateDownloader] Cek Content-Length: lokal=$fileLength, expected=$expectedLength -> match=$isMatch');
+          return isMatch;
+        }
+      }
+    } catch (e) {
+      debugPrint('[UpdateDownloader] HEAD request verification warning: $e');
+    }
+    // Jika tidak bisa mendapatkan Content-Length (offline / header tersembunyi),
+    // pastikan ukuran berkas setidaknya memadai (> 1MB)
+    return fileLength > 1024 * 1024;
+  }
+
   // ─── Download + Install dengan 3 lapis fallback ───
   Future<AppUpdateDownloadResult> downloadAndInstall({
     required String downloadUrl,
     required String versionName,
     void Function(int percent)? onProgress,
   }) async {
-    // Langkah 1: Cek apakah file sudah ada di lokal
+    // Langkah 1: Cek apakah file sudah ada & valid di lokal
     final existingPath = await checkLocalApk(
       downloadUrl: downloadUrl,
       versionName: versionName,
     );
 
     if (existingPath != null) {
-      debugPrint('[UpdateDownloader] File sudah ada, langsung install...');
+      debugPrint('[UpdateDownloader] File sudah ada & valid, langsung install...');
       final installResult = await _tryInstallApk(existingPath);
       if (installResult != null) return installResult;
 
@@ -73,17 +127,25 @@ class UpdateDownloader {
       } catch (_) {}
     }
 
-    // Langkah 2: Download file baru
+    // Langkah 2: Download file baru ke file temporary (.tmp)
+    final baseDir = await _getDownloadDirectory();
+    final fileName = _resolveFileName(downloadUrl, versionName);
+    final finalFile = File('${baseDir.path}/$fileName');
+    final tempFile = File('${baseDir.path}/$fileName.tmp');
+
     try {
-      final baseDir = await _getDownloadDirectory();
-      final fileName = _resolveFileName(downloadUrl, versionName);
-      final file = File('${baseDir.path}/$fileName');
+      // Hapus file temp bekas jika ada
+      if (await tempFile.exists()) {
+        try {
+          await tempFile.delete();
+        } catch (_) {}
+      }
 
       onProgress?.call(0);
 
       await _dio.download(
         downloadUrl,
-        file.path,
+        tempFile.path,
         onReceiveProgress: (received, total) {
           if (total <= 0) return;
           final percent = ((received / total) * 100).round().clamp(0, 100);
@@ -98,13 +160,29 @@ class UpdateDownloader {
 
       onProgress?.call(100);
 
+      // Setelah unduhan selesai 100%, ubah nama temp file ke file APK akhir
+      if (await tempFile.exists()) {
+        if (await finalFile.exists()) {
+          try {
+            await finalFile.delete();
+          } catch (_) {}
+        }
+        await tempFile.rename(finalFile.path);
+      }
+
       // Langkah 3: Coba install file yang baru didownload
-      final installResult = await _tryInstallApk(file.path);
+      final installResult = await _tryInstallApk(finalFile.path);
       if (installResult != null) return installResult;
 
       // Semua cara install gagal → fallback ke browser
       return await _fallbackToBrowser(downloadUrl);
     } on DioException catch (e) {
+      // Bersihkan file temp jika download terputus
+      if (await tempFile.exists()) {
+        try {
+          await tempFile.delete();
+        } catch (_) {}
+      }
       final message = (e.message ?? '').toLowerCase();
       final networkError =
           e.type == DioExceptionType.connectionTimeout ||

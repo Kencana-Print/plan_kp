@@ -20,7 +20,7 @@ class InventarisScreen extends StatefulWidget {
 }
 
 class _InventarisScreenState extends State<InventarisScreen> {
-  static const _kPageBg = Color(0xFFF8FAFC);
+  static const _kPageBg = AppColors.surface;
   final _search = TextEditingController();
   final Set<int> _expandedJenisIds = <int>{};
   Timer? _searchDebounce;
@@ -110,29 +110,30 @@ class _InventarisScreenState extends State<InventarisScreen> {
                   child: Column(
                     children: [
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                        padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
                         child: Container(
                           decoration: BoxDecoration(
                             color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(AppRadius.md),
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.black.withValues(alpha: 0.02),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
                               ),
                             ],
                           ),
                           child: TextField(
                             controller: _search,
+                            style: const TextStyle(fontSize: 12.5),
                             decoration: InputDecoration(
                               hintText: 'Cari nama inventaris...',
                               prefixIcon: const Icon(Icons.search,
-                                  size: 20, color: AppColors.textSecondary),
+                                  size: 18, color: AppColors.textSecondary),
                               suffixIcon: _search.text.isNotEmpty
                                   ? IconButton(
                                       icon: const Icon(Icons.clear,
-                                          size: 20,
+                                          size: 18,
                                           color: AppColors.textSecondary),
                                       onPressed: () {
                                         _search.clear();
@@ -144,25 +145,25 @@ class _InventarisScreenState extends State<InventarisScreen> {
                               filled: true,
                               fillColor: Colors.white,
                               contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 14),
+                                  horizontal: 12, vertical: 8),
                               border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(AppRadius.md),
                                 borderSide:
                                     const BorderSide(color: AppColors.border),
                               ),
                               enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(AppRadius.md),
                                 borderSide:
                                     const BorderSide(color: AppColors.border),
                               ),
                               focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(AppRadius.md),
                                 borderSide: const BorderSide(
                                     color: AppColors.primary, width: 1.5),
                               ),
                             ),
-                            onChanged: (v) {
-                              _onSearchChanged(v);
+                            onChanged: (val) {
+                              _onSearchChanged(val);
                               setState(() {});
                             },
                           ),
@@ -615,7 +616,6 @@ class _InventarisFormState extends State<_InventarisForm> {
   String _kategori = '';
   String _kondisi = 'Baik (Sering digunakan)';
   bool _isActive = true;
-  bool _jenisHasExistingInventaris = false;
 
   static const _kondisiList = [
     'Baik (Sering digunakan)',
@@ -629,7 +629,6 @@ class _InventarisFormState extends State<_InventarisForm> {
   @override
   void initState() {
     super.initState();
-    _namaCtrl.addListener(_handleNamaChanged);
     final d = widget.item;
     if (d != null) {
       _noCtrl.text = d.invNo;
@@ -675,7 +674,7 @@ class _InventarisFormState extends State<_InventarisForm> {
     final items = provider.inventarisList
         .where((e) => e.invJenisId == jenisId)
         .toList(growable: false);
-    _jenisHasExistingInventaris = items.isNotEmpty;
+
 
     int maxNoNumber = 0;
     int noWidth = 3;
@@ -738,30 +737,8 @@ class _InventarisFormState extends State<_InventarisForm> {
     });
   }
 
-  String _buildNoPrefixFromNama(String value) {
-    final normalized = value
-        .toUpperCase()
-        .replaceAll(RegExp(r'[^A-Z0-9]+'), '_')
-        .replaceAll(RegExp(r'_+'), '_')
-        .replaceAll(RegExp(r'^_|_$'), '');
-    return normalized.isEmpty ? 'INV_' : '${normalized}_';
-  }
-
-  void _handleNamaChanged() {
-    if (!_isCreateMode || _jenisId == null) return;
-    if (_jenisHasExistingInventaris) return;
-
-    final nama = _namaCtrl.text.trim();
-    if (nama.isEmpty) return;
-
-    final suggestion = '${_buildNoPrefixFromNama(nama)}001';
-    if (_noCtrl.text.trim() == suggestion) return;
-    _noCtrl.text = suggestion;
-  }
-
   @override
   void dispose() {
-    _namaCtrl.removeListener(_handleNamaChanged);
     _noCtrl.dispose();
     _namaCtrl.dispose();
     _jenisCtrl.dispose();
@@ -864,15 +841,132 @@ class _InventarisFormState extends State<_InventarisForm> {
                         fontSize: 18, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 20),
 
-                _field(_noCtrl, 'No. Inventaris', Icons.tag, required: true),
+                // 1. No. Inventaris / Penjelasan Auto Generate paling atas
+                if (_isCreateMode && _jenisId == null)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 14),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: AppColors.primary.withValues(alpha: 0.25),
+                      ),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(
+                          Icons.auto_awesome_rounded,
+                          color: AppColors.primary,
+                          size: 20,
+                        ),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'No. Inventaris Generate Otomatis',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.w500,
+                              height: 1.3,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 14),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: AppColors.border.withValues(alpha: 0.7),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.tag_rounded,
+                            color: AppColors.primary,
+                            size: 18,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text(
+                                'No. Inventaris',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _noCtrl.text.isEmpty ? '-' : _noCtrl.text,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.textPrimary,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (_isCreateMode)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.auto_awesome,
+                                    size: 12, color: AppColors.primary),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Otomatis',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+
+                // 2. Picker Jenis
+                _jenisPickerField(),
+
+                // 3. Nama Inventaris
                 _field(_namaCtrl, 'Nama', Icons.inventory_2_outlined,
                     required: true),
-
-                _jenisPickerField(),
                 Padding(
                   padding: const EdgeInsets.only(bottom: 14),
                   child: DropdownButtonFormField<String>(
                     initialValue: safePabrikKode,
+                    style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
                     decoration: const InputDecoration(
                       labelText: 'Lokasi / Pabrik',
                       prefixIcon: Icon(Icons.location_on_outlined),
@@ -881,7 +975,9 @@ class _InventarisFormState extends State<_InventarisForm> {
                         .map(
                           (pabrik) => DropdownMenuItem(
                             value: pabrik.pabKode,
-                            child: Text(pabrik.displayLabel),
+                            child: Text(pabrik.displayLabel,
+                                style: const TextStyle(
+                                    fontSize: 13, color: AppColors.textPrimary)),
                           ),
                         )
                         .toList(),
@@ -896,11 +992,16 @@ class _InventarisFormState extends State<_InventarisForm> {
                 // Kondisi
                 DropdownButtonFormField<String>(
                   initialValue: safeKondisi,
+                  style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
                   decoration: const InputDecoration(
                       labelText: 'Kondisi',
                       prefixIcon: Icon(Icons.health_and_safety_outlined)),
                   items: _kondisiList
-                      .map((k) => DropdownMenuItem(value: k, child: Text(k)))
+                      .map((k) => DropdownMenuItem(
+                          value: k,
+                          child: Text(k,
+                              style: const TextStyle(
+                                  fontSize: 13, color: AppColors.textPrimary))))
                       .toList(),
                   onChanged: (v) => setState(() => _kondisi = v!),
                 ),
@@ -1096,11 +1197,16 @@ class _InventarisFormState extends State<_InventarisForm> {
   }
 
   Widget _field(TextEditingController ctrl, String label, IconData icon,
-      {bool required = false, String? hint, int maxLines = 1}) {
+      {bool required = false,
+      String? hint,
+      String? helperText,
+      int maxLines = 1,
+      bool readOnly = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: TextFormField(
         controller: ctrl,
+        readOnly: readOnly,
         maxLines: maxLines,
         decoration: InputDecoration(
             label: required
@@ -1119,7 +1225,10 @@ class _InventarisFormState extends State<_InventarisForm> {
                 : null,
             labelText: required ? null : label,
             hintText: hint,
+            helperText: helperText,
             prefixIcon: Icon(icon),
+            fillColor: readOnly ? Colors.grey.shade100 : null,
+            filled: readOnly,
             alignLabelWithHint: maxLines > 1),
         validator: required
             ? (v) =>

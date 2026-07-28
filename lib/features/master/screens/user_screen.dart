@@ -16,7 +16,7 @@ class UserScreen extends StatefulWidget {
 }
 
 class _UserScreenState extends State<UserScreen> {
-  static const _kPageBg = Color(0xFFF8FAFC);
+  static const _kPageBg = AppColors.surface;
   final Set<int> _togglingUserIds = {};
   final TextEditingController _searchCtrl = TextEditingController();
   String _searchQuery = '';
@@ -107,29 +107,30 @@ class _UserScreenState extends State<UserScreen> {
               width: maxContentWidth,
               child: Column(children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
                   child: Container(
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(AppRadius.md),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.02),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
                         ),
                       ],
                     ),
                     child: TextField(
                       controller: _searchCtrl,
+                      style: const TextStyle(fontSize: 12.5),
                       decoration: InputDecoration(
                         hintText: 'Cari nama atau NIK...',
                         prefixIcon: const Icon(Icons.search,
-                            size: 20, color: AppColors.textSecondary),
+                            size: 18, color: AppColors.textSecondary),
                         suffixIcon: _searchQuery.isNotEmpty
                             ? IconButton(
                                 icon: const Icon(Icons.clear_rounded,
-                                    color: AppColors.textSecondary),
+                                    size: 18, color: AppColors.textSecondary),
                                 onPressed: () {
                                   _searchCtrl.clear();
                                   setState(() => _searchQuery = '');
@@ -139,17 +140,17 @@ class _UserScreenState extends State<UserScreen> {
                         filled: true,
                         fillColor: Colors.white,
                         contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 14),
+                            horizontal: 12, vertical: 8),
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(AppRadius.md),
                           borderSide: const BorderSide(color: AppColors.border),
                         ),
                         enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(AppRadius.md),
                           borderSide: const BorderSide(color: AppColors.border),
                         ),
                         focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(AppRadius.md),
                           borderSide: const BorderSide(
                               color: AppColors.primary, width: 1.5),
                         ),
@@ -165,7 +166,7 @@ class _UserScreenState extends State<UserScreen> {
                         return const AppShimmer(
                           child: SingleChildScrollView(
                             physics: NeverScrollableScrollPhysics(),
-                            padding: EdgeInsets.symmetric(horizontal: 16),
+                            padding: EdgeInsets.symmetric(horizontal: 12),
                             child: Column(
                               children: [
                                 AppSkeletonListCard(),
@@ -192,9 +193,9 @@ class _UserScreenState extends State<UserScreen> {
                         );
                       }
                       return ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
+                        padding: const EdgeInsets.fromLTRB(12, 6, 12, 80),
                         itemCount: filteredUsers.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        separatorBuilder: (_, __) => const SizedBox(height: 6),
                         itemBuilder: (_, i) {
                           final user = filteredUsers[i];
                           final isCurrentUser =
@@ -205,27 +206,27 @@ class _UserScreenState extends State<UserScreen> {
                             margin: EdgeInsets.zero,
                             decoration: BoxDecoration(
                               color: Colors.white,
-                              borderRadius: BorderRadius.circular(20),
+                              borderRadius: BorderRadius.circular(AppRadius.md),
                               border: Border.all(
                                   color:
                                       AppColors.border.withValues(alpha: 0.6)),
                               boxShadow: [
                                 BoxShadow(
                                     color: Colors.black.withValues(alpha: 0.02),
-                                    blurRadius: 12,
-                                    offset: const Offset(0, 4)),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2)),
                               ],
                             ),
                             child: ListTile(
                               contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 8),
+                                  horizontal: 12, vertical: 4),
                               leading: Container(
-                                width: 44,
-                                height: 44,
+                                width: 36,
+                                height: 36,
                                 decoration: BoxDecoration(
                                   color:
                                       AppColors.primary.withValues(alpha: 0.08),
-                                  borderRadius: BorderRadius.circular(12),
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Center(
                                   child: Text(
@@ -234,8 +235,8 @@ class _UserScreenState extends State<UserScreen> {
                                         : 'U',
                                     style: const TextStyle(
                                       color: AppColors.primary,
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14,
                                     ),
                                   ),
                                 ),
@@ -243,8 +244,8 @@ class _UserScreenState extends State<UserScreen> {
                               title: Text(
                                 user.userNama,
                                 style: const TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 14.5,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13.5,
                                   color: AppColors.textPrimary,
                                 ),
                               ),
@@ -255,9 +256,9 @@ class _UserScreenState extends State<UserScreen> {
                                     Text(
                                       'NIK: ${user.userNik}',
                                       style: const TextStyle(
-                                        fontSize: 12,
+                                        fontSize: 11.5,
                                         color: AppColors.textSecondary,
-                                        fontWeight: FontWeight.w600,
+                                        fontWeight: FontWeight.w500,
                                       ),
                                     ),
                                     const SizedBox(height: 6),
@@ -578,25 +579,33 @@ class _UserFormState extends State<_UserForm> {
               const SizedBox(height: 14),
               DropdownButtonFormField<String>(
                   initialValue: _jabatan,
+                  style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
                   decoration: const InputDecoration(
                       labelText: 'Jabatan',
                       prefixIcon: Icon(Icons.work_outline)),
                   items: _jabatanList
                       .map((j) => DropdownMenuItem(
-                          value: j['value'], child: Text(j['label']!)))
+                          value: j['value'],
+                          child: Text(j['label']!,
+                              style: const TextStyle(
+                                  fontSize: 13, color: AppColors.textPrimary))))
                       .toList(),
                   onChanged: (v) => setState(() => _jabatan = v!)),
               const SizedBox(height: 14),
               DropdownButtonFormField<String>(
                 initialValue: _divisi,
+                style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
                 decoration: const InputDecoration(
                     labelText: 'Divisi',
                     prefixIcon: Icon(Icons.account_tree_outlined)),
                 items: (master.divisiMetadata.isNotEmpty
                         ? master.divisiMetadata
                         : UserModel.divisiList)
-                    .map(
-                        (div) => DropdownMenuItem(value: div, child: Text(div)))
+                    .map((div) => DropdownMenuItem(
+                        value: div,
+                        child: Text(div,
+                            style: const TextStyle(
+                                fontSize: 13, color: AppColors.textPrimary))))
                     .toList(),
                 onChanged: (v) => setState(() => _divisi = v),
                 validator: (v) => v == null ? 'Divisi wajib dipilih' : null,
@@ -604,6 +613,7 @@ class _UserFormState extends State<_UserForm> {
               const SizedBox(height: 14),
               DropdownButtonFormField<String>(
                 initialValue: _cabang,
+                style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
                 decoration: const InputDecoration(
                   labelText: 'Cabang',
                   prefixIcon: Icon(Icons.business_outlined),
@@ -612,7 +622,9 @@ class _UserFormState extends State<_UserForm> {
                     .map(
                       (pabrik) => DropdownMenuItem(
                         value: pabrik.pabKode,
-                        child: Text(pabrik.displayLabel),
+                        child: Text(pabrik.displayLabel,
+                            style: const TextStyle(
+                                fontSize: 13, color: AppColors.textPrimary)),
                       ),
                     )
                     .toList(),

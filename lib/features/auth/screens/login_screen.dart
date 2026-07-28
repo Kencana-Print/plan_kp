@@ -21,7 +21,7 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  static const _pageBg = Color(0xFFF8FAFC);
+  static const _pageBg = AppColors.surface;
   final _formKey = GlobalKey<FormState>();
   final _usernameCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
@@ -259,16 +259,16 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Widget _buildLoginCard(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.border.withValues(alpha: 0.8)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.025),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -277,15 +277,11 @@ class _LoginScreenState extends State<LoginScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
+            Text(
               'Login',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
-              ),
+              style: Theme.of(context).textTheme.titleLarge,
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: AppSpacing.md),
             _buildInputField(
               controller: _usernameCtrl,
               label: 'Username',
@@ -296,7 +292,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ? 'Username wajib diisi'
                   : null,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.sm),
             _buildInputField(
               controller: _passCtrl,
               label: 'Password',
@@ -307,12 +303,12 @@ class _LoginScreenState extends State<LoginScreen> {
               validator: (v) =>
                   (v == null || v.isEmpty) ? 'Password wajib diisi' : null,
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: AppSpacing.sm),
             Row(
               children: [
                 SizedBox(
-                  height: 22,
-                  width: 22,
+                  height: 20,
+                  width: 20,
                   child: Checkbox(
                     value: _rememberMe,
                     onChanged: (val) {
@@ -321,57 +317,53 @@ class _LoginScreenState extends State<LoginScreen> {
                       });
                     },
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(4),
                     ),
                     activeColor: AppColors.primary,
                     side: const BorderSide(color: AppColors.border, width: 1.5),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: AppSpacing.sm),
                 GestureDetector(
                   onTap: () {
                     setState(() {
                       _rememberMe = !_rememberMe;
                     });
                   },
-                  child: const Text(
+                  child: Text(
                     'Ingat saya',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
+                    style: Theme.of(context).textTheme.bodyMedium,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: AppSpacing.md),
             Consumer<AuthProvider>(
               builder: (_, auth, __) => ElevatedButton(
                 onPressed: auth.loading ? null : _submit,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: AppColors.white,
-                  minimumSize: const Size(double.infinity, 54),
+                  minimumSize: const Size(double.infinity, 44),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
+                      borderRadius: BorderRadius.circular(AppRadius.md)),
                   elevation: 0,
                 ),
                 child: auth.loading
                     ? const SizedBox(
-                        height: 24,
-                        width: 24,
+                        height: 20,
+                        width: 20,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2.5, color: Colors.white),
+                            strokeWidth: 2, color: Colors.white),
                       )
                     : const Text(
                         'Masuk',
                         style: TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 15),
+                            fontWeight: FontWeight.w700, fontSize: 14),
                       ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: AppSpacing.md),
             Text(
               '$_appVersionLabel • $_updateStatusLabel',
               style: TextStyle(
@@ -404,40 +396,40 @@ class _LoginScreenState extends State<LoginScreen> {
       validator: validator,
       textCapitalization: textCapitalization,
       inputFormatters: inputFormatters,
-      style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600),
+      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
       decoration: InputDecoration(
         labelText: label,
         labelStyle: const TextStyle(
             color: AppColors.textSecondary,
             fontWeight: FontWeight.w500,
-            fontSize: 14),
-        prefixIcon: Icon(icon, color: AppColors.textSecondary, size: 20),
+            fontSize: 12),
+        prefixIcon: Icon(icon, color: AppColors.textSecondary, size: 18),
         suffixIcon: isPassword
             ? IconButton(
                 icon: Icon(obscure
                     ? Icons.visibility_off_outlined
                     : Icons.visibility_outlined),
                 onPressed: onToggle,
-                iconSize: 20,
+                iconSize: 18,
                 color: AppColors.textSecondary,
               )
             : null,
         filled: true,
         fillColor: AppColors.surface,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
         ),
         contentPadding:
-            const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+            const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
       ),
     );
   }
@@ -446,23 +438,21 @@ class _LoginScreenState extends State<LoginScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Text(
+        Text(
           'Belum punya akun?',
-          style: TextStyle(
-              color: AppColors.textSecondary,
-              fontWeight: FontWeight.w500,
-              fontSize: 14),
+          style: Theme.of(context).textTheme.bodyMedium,
         ),
         TextButton(
           onPressed: () => Navigator.pushNamed(context, AppRoutes.register),
           style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            visualDensity: VisualDensity.compact,
           ),
           child: const Text(
             'Daftar',
             style: TextStyle(
               fontWeight: FontWeight.w700,
-              fontSize: 14,
+              fontSize: 13,
               color: AppColors.primary,
             ),
           ),

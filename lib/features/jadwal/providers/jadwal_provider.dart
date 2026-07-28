@@ -17,6 +17,29 @@ class JadwalProvider extends ChangeNotifier {
   int? monitoringTahun;
   final Map<String, Set<int>> _holidayDaysByMonth = {};
   Map<String, dynamic> dashboardSummary = {};
+  List<RealisasiModel> kendalaList = [];
+  bool loadingKendala = false;
+
+  Future<void> fetchKendalaDivisi({String? divisi, String filterTindakLanjut = 'all'}) async {
+    loadingKendala = true;
+    notifyListeners();
+    try {
+      final query = <String, dynamic>{
+        'kondisi_akhir': 'Rusak,Perlu Perhatian',
+        if (filterTindakLanjut != 'all') 'tindak_lanjut': filterTindakLanjut,
+        if (divisi != null && divisi.isNotEmpty) 'divisi': divisi,
+      };
+      final res = await ApiClient.get('${ApiConfig.realisasi}/kendala', query: query);
+      final rawList = (res['data'] as List? ?? []);
+      kendalaList = rawList.map((j) => RealisasiModel.fromJson(j)).toList();
+      _setError(null);
+    } on ApiException catch (e) {
+      _setError(e.message);
+    } finally {
+      loadingKendala = false;
+      notifyListeners();
+    }
+  }
   
   // (sisanya tetap sama, mari kita sesuaikan fetchMonitoringDivisi di bawah)
   
@@ -58,8 +81,8 @@ class JadwalProvider extends ChangeNotifier {
   bool get loadingDetail => _loadingDetail;
   String? get error => _error;
 
-  Set<int> getHolidayDaysForMonth(DateTime month) {
-    final key = _monthKey(month);
+  Set<int> getHolidayDaysForMonth(DateTime month, {String? divisi}) {
+    final key = '${_monthKey(month)}_${divisi ?? "ALL"}';
     return _holidayDaysByMonth[key] ?? <int>{};
   }
 
@@ -74,6 +97,40 @@ class JadwalProvider extends ChangeNotifier {
     }
     if (data is List) return data;
     return const [];
+  }
+
+  Future<void> fetchHariLiburForMonth(DateTime month, {String? divisi}) async {
+    final key = '${_monthKey(month)}_${divisi ?? "ALL"}';
+    if (_holidayDaysByMonth.containsKey(key)) return;
+
+    try {
+      final query = <String, dynamic>{
+        'year': month.year,
+        'month': month.month,
+        if (divisi != null && divisi.isNotEmpty) 'divisi': divisi,
+      };
+      final res = await ApiClient.get(
+        ApiConfig.jadwalHariLibur,
+        query: query,
+      );
+      final items = _extractHolidayItems(res['data']);
+      final days = <int>{};
+      for (final item in items) {
+        if (item is! Map<String, dynamic>) continue;
+        final tanggal = _extractHolidayDateString(item);
+        if (tanggal == null || tanggal.isEmpty) continue;
+        final date = _parseHolidayDate(tanggal);
+        if (date == null) continue;
+        if (date.year == month.year && date.month == month.month) {
+          days.add(date.day);
+        }
+      }
+      _holidayDaysByMonth[key] = days;
+      notifyListeners();
+    } on ApiException {
+      _holidayDaysByMonth.remove(key);
+      notifyListeners();
+    }
   }
 
   String? _extractHolidayDateString(Map<String, dynamic> item) {
@@ -220,36 +277,7 @@ class JadwalProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> fetchHariLiburForMonth(DateTime month) async {
-    final key = _monthKey(month);
-    if (_holidayDaysByMonth.containsKey(key)) return;
 
-    try {
-      final res = await ApiClient.get(
-        ApiConfig.jadwalHariLibur,
-        query: {'year': month.year, 'month': month.month},
-      );
-      final items = _extractHolidayItems(res['data']);
-      final days = <int>{};
-      for (final item in items) {
-        if (item is! Map<String, dynamic>) continue;
-        final tanggal = _extractHolidayDateString(item);
-        if (tanggal == null || tanggal.isEmpty) continue;
-        final date = _parseHolidayDate(tanggal);
-        if (date == null) continue;
-        if (date.year == month.year && date.month == month.month) {
-          days.add(date.day);
-        }
-      }
-      _holidayDaysByMonth[key] = days;
-      notifyListeners();
-    } on ApiException {
-      // Jangan cache gagal fetch sebagai set kosong,
-      // supaya refresh berikutnya tetap mencoba ambil data.
-      _holidayDaysByMonth.remove(key);
-      notifyListeners();
-    }
-  }
 
   Future<void> fetchJadwalDetail(int id,
       {bool affectGlobalLoading = true}) async {

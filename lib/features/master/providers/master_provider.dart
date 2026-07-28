@@ -366,6 +366,7 @@ class MasterProvider extends ChangeNotifier {
   Future<List<UserModel>> fetchUsers(
       {String? jabatan,
       String? divisi,
+      String? scope,
       bool showLoading = true,
       bool replaceState = true}) async {
     final toggleLoading = showLoading && replaceState;
@@ -374,6 +375,7 @@ class MasterProvider extends ChangeNotifier {
       final query = {
         if (jabatan != null) 'jabatan': jabatan,
         if (divisi != null) 'divisi': divisi,
+        if (scope != null) 'scope': scope,
       };
       final res = await ApiClient.get(ApiConfig.users,
           query: query.isEmpty ? null : query);

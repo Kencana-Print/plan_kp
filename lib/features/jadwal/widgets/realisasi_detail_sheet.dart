@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/utils/api_client.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../models/realisasi_model.dart';
@@ -169,11 +171,34 @@ class _RealisasiDetailContent extends StatefulWidget {
 
 class _RealisasiDetailContentState extends State<_RealisasiDetailContent> {
   late RealisasiModel _currentDetail;
+  bool _loadingDetail = false;
 
   @override
   void initState() {
     super.initState();
     _currentDetail = widget.detail;
+    if (_currentDetail.hasilChecklist.isEmpty) {
+      _loadFullDetail();
+    }
+  }
+
+  Future<void> _loadFullDetail() async {
+    if (_loadingDetail) return;
+    setState(() => _loadingDetail = true);
+    try {
+      final res = await ApiClient.get('${ApiConfig.realisasi}/${widget.detail.realId}');
+      if (res['data'] != null && mounted) {
+        setState(() {
+          _currentDetail = RealisasiModel.fromJson(res['data']);
+        });
+      }
+    } catch (_) {
+      // Ignored
+    } finally {
+      if (mounted) {
+        setState(() => _loadingDetail = false);
+      }
+    }
   }
 
   @override
@@ -219,9 +244,12 @@ class _RealisasiDetailContentState extends State<_RealisasiDetailContent> {
             RealisasiDetailSheet._detailRow(
                 'Jadwal', detail.jadwal?['jdw_judul'] ?? '-'),
             RealisasiDetailSheet._detailRow(
-                'Unit', '${detail.invNo} · ${detail.invNama}'),
+              'Unit',
+              '${detail.invNama} (${detail.invSerialNumber})',
+            ),
             RealisasiDetailSheet._detailRow(
                 'Tanggal', DateFormatter.toDisplay(detail.realTgl)),
+
             RealisasiDetailSheet._detailRow('Status', detail.realStatus),
             if (detail.realJamMulai != null && detail.realJamMulai!.isNotEmpty)
               RealisasiDetailSheet._detailRow(
@@ -251,7 +279,12 @@ class _RealisasiDetailContentState extends State<_RealisasiDetailContent> {
               style: TextStyle(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 8),
-            if (detail.hasilChecklist.isEmpty)
+            if (_loadingDetail)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              )
+            else if (detail.hasilChecklist.isEmpty)
               const Text('-',
                   style: TextStyle(color: AppColors.textSecondary))
             else

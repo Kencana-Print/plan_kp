@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import '../utils/date_formatter.dart';
 
 typedef AppConfirmCallback = FutureOr<void> Function();
 
@@ -21,13 +22,14 @@ class AppNotifier {
 
   static Future<void> showWarning(BuildContext context, String message) async {
     if (!context.mounted) return;
+    final formatted = DateFormatter.formatMessageDates(message);
     await AwesomeDialog(
       context: context,
       width: _dialogWidth(context),
       dialogType: DialogType.warning,
       animType: AnimType.scale,
       title: 'Perhatian',
-      desc: message,
+      desc: formatted,
       btnOkColor: AppColors.warning,
       btnOkOnPress: () {},
       headerAnimationLoop: true,
@@ -36,13 +38,14 @@ class AppNotifier {
 
   static Future<void> showError(BuildContext context, String message) async {
     if (!context.mounted) return;
+    final formatted = DateFormatter.formatMessageDates(message);
     await AwesomeDialog(
       context: context,
       width: _dialogWidth(context),
       dialogType: DialogType.error,
       animType: AnimType.scale,
       title: 'Terjadi Kesalahan',
-      desc: message,
+      desc: formatted,
       btnOkColor: AppColors.danger,
       btnOkOnPress: () {},
       headerAnimationLoop: true,

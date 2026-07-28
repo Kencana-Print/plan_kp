@@ -16,7 +16,7 @@ import '../models/jadwal_model.dart';
 import '../models/realisasi_model.dart';
 import '../providers/jadwal_provider.dart';
 
-const _kPageBg = Color(0xFFF8FAFC);
+const _kPageBg = AppColors.surface;
 
 class JadwalScreen extends StatefulWidget {
   final int initialIndex;
@@ -29,6 +29,8 @@ class JadwalScreen extends StatefulWidget {
 class _JadwalScreenState extends State<JadwalScreen> {
   String? _selectedFrekuensi;
   bool _isGapGuideExpanded = false;
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _searchQuery = '';
 
 
   // Logika pembantu periode (dipertahankan)
@@ -63,11 +65,23 @@ class _JadwalScreenState extends State<JadwalScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadData());
+    _searchCtrl.addListener(() {
+      setState(() {
+        _searchQuery = _searchCtrl.text.trim();
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
     final auth = context.read<AuthProvider>();
     final jadwalProvider = context.read<JadwalProvider>();
+    final masterProvider = context.read<MasterProvider>();
     final role = auth.user?['user_jabatan'];
     final isAdmin = role == 'admin' || role == 'manager';
     if (isAdmin) {
@@ -76,7 +90,8 @@ class _JadwalScreenState extends State<JadwalScreen> {
       await jadwalProvider.fetchJadwalByUser(status: 'Draft');
     }
     if (!mounted) return;
-    await context.read<MasterProvider>().fetchJenis();
+    await masterProvider.fetchJenis();
+    await masterProvider.fetchInventaris(showLoading: false);
   }
 
   // --- Logika Form & Action (Dipertahankan) ---
@@ -115,13 +130,12 @@ class _JadwalScreenState extends State<JadwalScreen> {
     );
   }
 
-  Future<void> _handleJadwalTap(JadwalModel jadwal,
-      {required bool isAdmin, required bool isUser}) async {
-    if (isAdmin || !isUser) {
-      Navigator.pushNamed(context, AppRoutes.jadwalDetail,
-          arguments: jadwal.jdwId);
-      return;
-    }
+  void _openJadwalDetail(JadwalModel jadwal) {
+    Navigator.pushNamed(context, AppRoutes.jadwalDetail,
+        arguments: jadwal.jdwId);
+  }
+
+  Future<void> _handleRealisasiTap(JadwalModel jadwal) async {
     final p = context.read<JadwalProvider>();
     await p.fetchJadwalDetail(jadwal.jdwId);
     await p.fetchRealisasi(jadwalId: jadwal.jdwId);
@@ -481,11 +495,11 @@ class _JadwalScreenState extends State<JadwalScreen> {
                       ),
                       _guideRow(
                         'Cegah mesin diservis terlalu sering',
-                        '⚙  Menu Jenis → Gap per Inventaris',
+                        'Menu Jenis → Gap per Inventaris',
                       ),
                       _guideRow(
                         'Cegah jadwal dilakukan terlalu sering',
-                        '📅  Form Jadwal → Gap Realisasi',
+                        'Form Jadwal → Gap Realisasi',
                       ),
                     ],
                   ),
@@ -543,6 +557,44 @@ class _JadwalScreenState extends State<JadwalScreen> {
           : null,
       body: Consumer<JadwalProvider>(
         builder: (_, p, __) {
+          // Search Bar
+          final Widget searchBar = SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: TextField(
+                controller: _searchCtrl,
+                onChanged: (val) {
+                  setState(() {
+                    _searchQuery = val.trim();
+                  });
+                },
+                decoration: InputDecoration(
+                  hintText: 'Cari judul, nama inventaris, atau jenis...',
+                  prefixIcon: const Icon(Icons.search, color: AppColors.primary),
+                  suffixIcon: _searchCtrl.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, color: Colors.grey),
+                          onPressed: () {
+                            _searchCtrl.clear();
+                            setState(() {
+                              _searchQuery = '';
+                            });
+                          },
+                        )
+                      : null,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+              ),
+            ),
+          );
+
           if (p.loading) {
             return const AppShimmer(
               child: SingleChildScrollView(
@@ -560,13 +612,37 @@ class _JadwalScreenState extends State<JadwalScreen> {
             );
           }
 
-          final jadwalAktif =
-              p.jadwalList.where((j) => j.jdwStatus == 'Draft').toList();
-          final filtered = _selectedFrekuensi != null
-              ? jadwalAktif
-                  .where((j) => j.jdwFrekuensi == _selectedFrekuensi)
-                  .toList()
+          final jadwalAktif = p.jadwalList.where((j) => j.jdwStatus == 'Draft').toList();
+          // Filter by frekuensi selection
+          List<JadwalModel> filtered = _selectedFrekuensi != null
+              ? jadwalAktif.where((j) => j.jdwFrekuensi == _selectedFrekuensi).toList()
               : jadwalAktif;
+          // Filter by search query
+          if (_searchQuery.isNotEmpty) {
+            final query = _searchQuery.toLowerCase();
+            final master = context.read<MasterProvider>();
+            filtered = filtered.where((j) {
+              final judul = j.jdwJudul.toLowerCase();
+              final invJenis = (j.jdwInvJenis ?? '').toLowerCase();
+              final jenisNama = (j.jdwInvJenis?.trim().isNotEmpty == true)
+                  ? invJenis
+                  : master.jenisById(j.jdwJenisId)?.jenisNama.toLowerCase() ?? '';
+
+              // Pencarian ke daftar unit inventaris spesifik di bawah jenis ini
+              final matchingInv = master.inventarisList.where((inv) {
+                if (inv.invJenisId != j.jdwJenisId) return false;
+                final invNama = inv.invNama.toLowerCase();
+                final invNo = inv.invNo.toLowerCase();
+                final invSn = (inv.invSerialNumber ?? '').toLowerCase();
+                return invNama.contains(query) || invNo.contains(query) || invSn.contains(query);
+              });
+
+              return judul.contains(query) ||
+                  invJenis.contains(query) ||
+                  jenisNama.contains(query) ||
+                  matchingInv.isNotEmpty;
+            }).toList();
+          }
 
           return Center(
             child: ConstrainedBox(
@@ -580,9 +656,13 @@ class _JadwalScreenState extends State<JadwalScreen> {
                       children: [
                         _buildSummaryTable(jadwalAktif),
                         if (isAdmin) _buildGapGuideCard(),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 8),
                       ],
                     ),
+                  ),
+                  searchBar,
+                  const SliverToBoxAdapter(
+                    child: SizedBox(height: 8),
                   ),
 
                   // List Jadwal
@@ -590,9 +670,11 @@ class _JadwalScreenState extends State<JadwalScreen> {
                     SliverFillRemaining(
                       hasScrollBody: false,
                       child: EmptyState(
-                          message: _selectedFrekuensi != null
-                              ? 'Tidak ada jadwal $_selectedFrekuensi yang aktif'
-                              : 'Belum ada jadwal yang aktif'),
+                          message: _searchQuery.isNotEmpty
+                              ? 'Jadwal "$_searchQuery" tidak ditemukan'
+                              : (_selectedFrekuensi != null
+                                  ? 'Tidak ada jadwal $_selectedFrekuensi yang aktif'
+                                  : 'Belum ada jadwal yang aktif')),
                     )
                   else
                     SliverPadding(
@@ -622,8 +704,8 @@ class _JadwalScreenState extends State<JadwalScreen> {
                                 pabrikLabel: pabrikLabel,
                                 isAdmin: isAdmin,
                                 isUser: isUser,
-                                onTap: () => _handleJadwalTap(item,
-                                    isAdmin: isAdmin, isUser: isUser),
+                                onTap: () => _openJadwalDetail(item),
+                                onRealisasi: () => _handleRealisasiTap(item),
                                 onEdit: () => _openForm(item),
                                 onDelete: () =>
                                     _confirmSelesaikanJadwal(item),
@@ -960,6 +1042,7 @@ class _JadwalCard extends StatelessWidget {
   final bool isAdmin;
   final bool isUser;
   final VoidCallback onTap;
+  final VoidCallback? onRealisasi;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final void Function(String) onStatusChange;
@@ -971,6 +1054,7 @@ class _JadwalCard extends StatelessWidget {
     required this.isAdmin,
     required this.isUser,
     required this.onTap,
+    this.onRealisasi,
     required this.onEdit,
     required this.onDelete,
     required this.onStatusChange,
@@ -994,7 +1078,7 @@ class _JadwalCard extends StatelessWidget {
 
   String _getRemainingDays(JadwalModel j) {
     final diff = _getRemainingDaysDiff(j);
-    if (diff < 0) return '⚠ Terlambat ${-diff}h';
+    if (diff < 0) return 'Terlambat ${-diff}h';
     if (diff == 0) return 'Hari ini!';
     if (diff == 1) return 'Besok';
     return '$diff hari lagi';
@@ -1044,12 +1128,9 @@ class _JadwalCard extends StatelessWidget {
     final selesai = jadwal.jdwSelesaiUnit ?? 0;
     final double progressPercent = target > 0 ? (selesai / target).clamp(0.0, 1.0) : 0.0;
 
-    final assignedNama = jadwal.assignedNama.trim();
-    final hasAssigned = assignedNama.isNotEmpty && assignedNama != '-';
-    final hasPabrik = (pabrikLabel ?? '').trim().isNotEmpty;
 
-    final teknisiText = hasAssigned ? assignedNama : 'belum ditentukan';
-    final lokasiText = hasPabrik ? pabrikLabel!.trim() : 'semua lokasi terkait';
+
+
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -1095,46 +1176,18 @@ class _JadwalCard extends StatelessWidget {
                             Text(
                               jadwal.jdwJudul,
                               style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                                height: 1.3,
                                 color: AppColors.textPrimary,
                               ),
-                              maxLines: 1,
+                              maxLines: 3,
                               overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey.shade100,
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    jadwal.jdwFrekuensi,
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: AppColors.textSecondary,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  jenisNama,
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: divisiColor,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ],
                             ),
                           ],
                         ),
                       ),
+                      const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 4),
@@ -1153,40 +1206,32 @@ class _JadwalCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  
-                  // Baris Detail Terstruktur
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
                   Row(
                     children: [
-                      const Icon(Icons.person_outline, size: 14, color: AppColors.textSecondary),
-                      const SizedBox(width: 6),
-                      Expanded(
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: divisiColor.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
                         child: Text(
-                          'Pelaksana: $teknisiText',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
-                            fontWeight: FontWeight.w500,
+                          'Divisi ${jadwal.jdwDivisi}',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            color: divisiColor,
+                            fontWeight: FontWeight.w700,
                           ),
-                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 3),
-                  Row(
-                    children: [
-                      const Icon(Icons.factory_outlined, size: 14, color: AppColors.textSecondary),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          'Lokasi: $lokasiText',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          overflow: TextOverflow.ellipsis,
+                      const SizedBox(width: 8),
+                      Text(
+                        'Target: ${jadwal.jdwTarget ?? 1} unit',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
@@ -1237,7 +1282,7 @@ class _JadwalCard extends StatelessWidget {
                       Icons.playlist_add_check_circle_outlined,
                       'Lakukan Realisasi',
                       AppColors.primary,
-                      onTap,
+                      onRealisasi ?? onTap,
                     ),
                   ],
 
@@ -1350,6 +1395,7 @@ class _JadwalFormState extends State<_JadwalForm> {
   String? _selectedPabrikValue;
   final _pabrikDropdownKey = GlobalKey<FormFieldState<String>>();
   int? _assignedToUserId;
+  bool _showAllDivisiPelaksana = false;
   String _frekuensi = 'Harian';
   DateTime? _tglMulai;
   DateTime? _tglSelesai;
@@ -1362,27 +1408,75 @@ class _JadwalFormState extends State<_JadwalForm> {
 
   Widget _buildJadwalSummaryWidget(BuildContext context) {
     final master = context.read<MasterProvider>();
+
+    final missingFields = <String>[];
+    if (_jenisId == null) missingFields.add('Jenis Inventaris');
+    if (_pabrikCodes.isEmpty) missingFields.add('Pabrik / Lokasi');
+    if (_assignedToUserId == null) missingFields.add('Pelaksana');
+    if (_tglMulai == null) missingFields.add('Tanggal Mulai');
+
+    if (missingFields.isNotEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.amber.shade50,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.amber.shade200),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.info_outline_rounded, size: 18, color: Colors.amber.shade800),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Ringkasan Belum Tersedia',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.amber.shade900,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    'Lengkapi data wajib berikut: ${missingFields.join(', ')}.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.amber.shade900,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     final jenis = _jenisCtrl.text.trim().isEmpty ? '-' : _jenisCtrl.text.trim();
-    final jenisGapHari = _jenisId != null
-        ? (master.jenisById(_jenisId!)?.jenisGapHari ?? 0)
-        : 0;
+    final jenisGapHari = master.jenisById(_jenisId!)?.jenisGapHari ?? 0;
     final target = int.tryParse(_targetCtrl.text.trim()) ?? 0;
-    final lokasi = _pabrikCodes.isEmpty ? '-' : _pabrikCodes.join(', ');
-    final mulai = _tglMulai != null ? _fmtDateDisplay(_tglMulai) : '-';
-    final selesai = _tglSelesai != null ? _fmtDateDisplay(_tglSelesai) : 'Tanpa batas';
+    final lokasi = _pabrikCodes.map((code) => master.displayPabrik(code)).join(', ');
+    final mulai = _fmtDateDisplay(_tglMulai);
+    final selesai = _tglSelesai != null ? _fmtDateDisplay(_tglSelesai) : 'Tanpa batas akhir';
     final jadwalGap = _showGapField ? (int.tryParse(_gapCtrl.text.trim()) ?? 0) : 0;
 
-    // Resolusi nama pelaksana dari UserModel
     final userList = master.userList;
-    final pelaksana = _assignedToUserId != null
-        ? (userList
-                .where((u) => u.userId == _assignedToUserId)
-                .map((u) => u.userNama)
-                .firstOrNull ??
-            '#$_assignedToUserId')
-        : 'Belum dipilih';
+    final pelaksana = userList
+            .where((u) => u.userId == _assignedToUserId)
+            .map((u) => u.userNama)
+            .firstOrNull ??
+        '#$_assignedToUserId';
+
+    final generatedJudul = _getGeneratedJudul();
 
     return _SummaryWidget(
+      judul: generatedJudul,
       jenis: jenis,
       frekuensi: _frekuensi,
       target: target,
@@ -1424,9 +1518,24 @@ class _JadwalFormState extends State<_JadwalForm> {
       _divisi = auth.user?['user_divisi'] ?? '';
     }
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _jenisId == null) return;
-      _syncTargetLimitForJenis(_jenisId!);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final master = context.read<MasterProvider>();
+      await master.fetchUsers(scope: 'all', showLoading: false);
+      if (!mounted) return;
+      if (_assignedToUserId != null && _divisi != null && _divisi!.isNotEmpty) {
+        final assignedUser = master.userList
+            .where((u) => u.userId == _assignedToUserId)
+            .firstOrNull;
+        if (assignedUser != null &&
+            assignedUser.userDivisi.trim().toLowerCase() !=
+                _divisi!.trim().toLowerCase()) {
+          setState(() => _showAllDivisiPelaksana = true);
+        }
+      }
+      if (_jenisId != null) {
+        _syncTargetLimitForJenis(_jenisId!);
+      }
     });
   }
 
@@ -1591,8 +1700,50 @@ class _JadwalFormState extends State<_JadwalForm> {
         });
         _pabrikDropdownKey.currentState?.didChange(null);
         await _syncTargetLimitForJenis(result.jenisId);
+        _autoGenerateJudul();
       }
     }
+  }
+
+  String _getGeneratedJudul() {
+    final master = context.read<MasterProvider>();
+
+    final freqUpper = _frekuensi.toUpperCase();
+    final jenisPart = _jenisCtrl.text.trim();
+
+    String userPart = '';
+    if (_assignedToUserId != null) {
+      final match = master.userList.where((u) => u.userId == _assignedToUserId);
+      if (match.isNotEmpty) {
+        userPart = '(${match.first.userNama.trim()})';
+      }
+    }
+
+    String lokasiPart = '';
+    if (_pabrikCodes.isNotEmpty) {
+      final names = _pabrikCodes.map((code) => master.displayPabrik(code)).join(', ');
+      lokasiPart = '| $names';
+    }
+
+    var title = 'MTC $freqUpper';
+    if (jenisPart.isNotEmpty) {
+      title += ' - $jenisPart';
+    }
+    if (userPart.isNotEmpty) {
+      title += ' $userPart';
+    }
+    if (lokasiPart.isNotEmpty) {
+      title += ' $lokasiPart';
+    }
+
+    return title;
+  }
+
+  void _autoGenerateJudul() {
+    final generated = _getGeneratedJudul();
+    setState(() {
+      _judulCtrl.text = generated;
+    });
   }
 
   Widget _requiredLabel(String label) {
@@ -1644,16 +1795,23 @@ class _JadwalFormState extends State<_JadwalForm> {
               label: _requiredLabel('Pabrik / Lokasi'),
               prefixIcon: const Icon(Icons.factory_outlined),
             ),
-            hint: Text(_jenisId == null
-                ? 'Pilih jenis inventaris dahulu'
-                : 'Pilih pabrik/lokasi'),
+            hint: Text(
+              _jenisId == null
+                  ? 'Pilih jenis inventaris dahulu'
+                  : 'Pilih pabrik/lokasi',
+              style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
             items: _jenisId == null
                 ? null
                 : filteredPabrikList
                     .map((p) => DropdownMenuItem(
                           value: p.pabKode,
-                          child: Text(p.displayLabel),
-                     ))
+                          child: Text(
+                            p.displayLabel,
+                            style: const TextStyle(
+                                fontSize: 13, color: AppColors.textPrimary),
+                          ),
+                        ))
                     .toList(),
             onChanged: _jenisId == null
                 ? null
@@ -1664,6 +1822,7 @@ class _JadwalFormState extends State<_JadwalForm> {
                         _pabrikCodes.add(value);
                       }
                       _selectedPabrikValue = null;
+                      _autoGenerateJudul();
                     });
                     _pabrikDropdownKey.currentState?.didChange(null);
                   },
@@ -1695,6 +1854,7 @@ class _JadwalFormState extends State<_JadwalForm> {
                   onDeleted: () {
                     setState(() {
                       _pabrikCodes.remove(code);
+                      _autoGenerateJudul();
                     });
                   },
                 );
@@ -1826,7 +1986,7 @@ class _JadwalFormState extends State<_JadwalForm> {
     }
     final p = context.read<JadwalProvider>();
     final body = {
-      'jdw_judul': _judulCtrl.text.trim(),
+      'jdw_judul': _getGeneratedJudul(),
       'jdw_jenis_id': _jenisId!,
       'jdw_target': parsedTarget,
       'jdw_divisi': _divisi,
@@ -1893,57 +2053,119 @@ class _JadwalFormState extends State<_JadwalForm> {
                   style: const TextStyle(
                       fontSize: 18, fontWeight: FontWeight.w700)),
               const SizedBox(height: 20),
-              TextFormField(
-                controller: _judulCtrl,
-                decoration: InputDecoration(
-                  label: _requiredLabel('Judul Jadwal'),
-                  prefixIcon: const Icon(Icons.title_outlined),
-                  hintText: 'Maintenance Mesin Sewing Mingguan...',
-                ),
-                validator: (v) => (v == null || v.trim().isEmpty)
-                    ? 'Judul wajib diisi'
-                    : null,
-              ),
-              const SizedBox(height: 14),
               _jenisPickerField(),
               const SizedBox(height: 14),
               _pabrikSelector(master),
               const SizedBox(height: 14),
-              DropdownButtonFormField<int>(
-                initialValue: _assignedToUserId,
-                decoration: InputDecoration(
-                  label: _requiredLabel('Pelaksana / User'),
-                  prefixIcon: const Icon(Icons.person_outlined),
-                ),
-                hint: const Text('Pilih pelaksana'),
-                items: master.userList
-                    .where((u) {
-                      final targetDivisi = (_divisi ?? '').trim().toLowerCase();
-                      final userDiv = u.userDivisi.trim().toLowerCase();
-                      final matchDivisi =
-                          targetDivisi.isEmpty || userDiv == targetDivisi;
-                      final matchJabatan = u.userJabatan == 'user' ||
-                          u.userJabatan == 'teknisi' ||
-                          u.userJabatan == 'it_support';
-                      return matchDivisi && matchJabatan && u.userIsActive;
-                    })
-                    .map((u) => DropdownMenuItem(
-                          value: u.userId,
-                          child: Text(u.userNama),
-                        ))
-                    .toList(),
-                onChanged: (v) => setState(() => _assignedToUserId = v),
-                validator: (v) => v == null ? 'Pelaksana wajib dipilih' : null,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  DropdownButtonFormField<int>(
+                    initialValue: _assignedToUserId,
+                    style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
+                    decoration: InputDecoration(
+                      label: _requiredLabel('Pelaksana / User'),
+                      prefixIcon: const Icon(Icons.person_outlined),
+                    ),
+                    hint: const Text(
+                      'Pilih pelaksana',
+                      style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                    ),
+                    items: master.userList
+                        .where((u) {
+                          final targetDivisi = (_divisi ?? '').trim().toLowerCase();
+                          final userDiv = u.userDivisi.trim().toLowerCase();
+                          final matchDivisi = _showAllDivisiPelaksana ||
+                              targetDivisi.isEmpty ||
+                              userDiv == targetDivisi ||
+                              u.userId == _assignedToUserId;
+                          final matchJabatan = u.userJabatan == 'user' ||
+                              u.userJabatan == 'teknisi' ||
+                              u.userJabatan == 'it_support';
+                          return matchDivisi && matchJabatan && u.userIsActive;
+                        })
+                        .map((u) {
+                          final isDiffDivisi = _divisi != null &&
+                              _divisi!.isNotEmpty &&
+                              u.userDivisi.trim().toLowerCase() !=
+                                  _divisi!.trim().toLowerCase();
+                          return DropdownMenuItem(
+                            value: u.userId,
+                            child: Text(
+                              isDiffDivisi
+                                  ? '${u.userNama} (${u.userDivisi})'
+                                  : u.userNama,
+                              style: const TextStyle(
+                                  fontSize: 13, color: AppColors.textPrimary),
+                            ),
+                          );
+                        })
+                        .toList(),
+                    onChanged: (v) {
+                      setState(() => _assignedToUserId = v);
+                      _autoGenerateJudul();
+                    },
+                    validator: (v) =>
+                        v == null ? 'Pelaksana wajib dipilih' : null,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4, left: 4),
+                    child: InkWell(
+                      onTap: () => setState(
+                          () => _showAllDivisiPelaksana = !_showAllDivisiPelaksana),
+                      borderRadius: BorderRadius.circular(4),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: Checkbox(
+                                value: _showAllDivisiPelaksana,
+                                activeColor: AppColors.primary,
+                                materialTapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(4)),
+                                onChanged: (v) => setState(
+                                    () => _showAllDivisiPelaksana = v ?? false),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Tampilkan User Lintas Divisi',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 14),
               DropdownButtonFormField<String>(
                 initialValue: _frekuensi,
+                style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
                 decoration: InputDecoration(
                   label: _requiredLabel('Frekuensi'),
                   prefixIcon: const Icon(Icons.repeat_outlined),
                 ),
                 items: _frekuensiList
-                    .map((f) => DropdownMenuItem(value: f, child: Text(f)))
+                    .map((f) => DropdownMenuItem(
+                          value: f,
+                          child: Text(
+                            f,
+                            style: const TextStyle(
+                                fontSize: 13, color: AppColors.textPrimary),
+                          ),
+                        ))
                     .toList(),
                 onChanged: (v) {
                   if (v == null) return;
@@ -2184,6 +2406,7 @@ class _JadwalFormState extends State<_JadwalForm> {
 //  RINGKASAN JADWAL WIDGET (Visual Preview Realtime)
 // ═══════════════════════════════════════════════════════════════
 class _SummaryWidget extends StatelessWidget {
+  final String judul;
   final String jenis;
   final String frekuensi;
   final int target;
@@ -2195,6 +2418,7 @@ class _SummaryWidget extends StatelessWidget {
   final String pelaksana;
 
   const _SummaryWidget({
+    required this.judul,
     required this.jenis,
     required this.frekuensi,
     required this.target,
@@ -2213,6 +2437,34 @@ class _SummaryWidget extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.primary.withValues(alpha: 0.15)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.title_outlined, size: 16, color: AppColors.primary),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  judul,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
+                    height: 1.3,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
         _row(Icons.category_outlined, 'Jenis Inventaris', jenis),
         _row(Icons.person_outline, 'Pelaksana', pelaksana),
         _row(Icons.repeat_outlined, 'Frekuensi', frekuensi),
@@ -2229,7 +2481,7 @@ class _SummaryWidget extends StatelessWidget {
                 ? 'Tidak ada (dapat realisasi kapan saja)'
                 : 'Realisasi jeda $jadwalGapHari hari per $frekuensi',
             jadwalGapHari > 0
-                ? '⚠ Jika target > 1 unit, isi 0 agar tidak terblokir'
+                ? 'Jika target > 1 unit, isi 0 agar tidak terblokir'
                 : null,
             jadwalGapHari > 0
                 ? const Color(0xFFF97316)

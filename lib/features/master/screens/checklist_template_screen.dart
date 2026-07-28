@@ -18,7 +18,7 @@ class ChecklistTemplateScreen extends StatefulWidget {
 }
 
 class _ChecklistTemplateScreenState extends State<ChecklistTemplateScreen> {
-  static const _kPageBg = Color(0xFFF8FAFC);
+  static const _kPageBg = AppColors.surface;
   final _searchCtrl = TextEditingController();
 
   void _showSuccess(String message) {
@@ -261,14 +261,21 @@ class _SingleItemFormState extends State<_SingleItemForm> {
                 // Dropdown jenis
                 DropdownButtonFormField<String>(
                   initialValue: _selectedJenis,
+                  style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
                   decoration: const InputDecoration(
                     labelText: 'Jenis Inventaris',
                     prefixIcon: Icon(Icons.label_outline),
                   ),
-                  hint: const Text('Pilih jenis inventaris'),
+                  hint: const Text(
+                    'Pilih jenis inventaris',
+                    style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                  ),
                   items: allJenis
                       .map((j) => DropdownMenuItem(
-                          value: '${j.jenisId}', child: Text(j.jenisNama)))
+                          value: '${j.jenisId}',
+                          child: Text(j.jenisNama,
+                              style: const TextStyle(
+                                  fontSize: 13, color: AppColors.textPrimary))))
                       .toList(),
                   onChanged:
                       isEdit ? null : (v) => setState(() => _selectedJenis = v),
@@ -527,16 +534,23 @@ class _BulkInputFormState extends State<_BulkInputForm> {
                   initialValue: widget.jenisLocked
                       ? (widget.initialJenis ?? _selectedJenis)
                       : _selectedJenis,
+                  style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
                   decoration: const InputDecoration(
                     labelText: 'Jenis Inventaris',
                     prefixIcon: Icon(Icons.label_outline),
                     filled: true,
                     fillColor: AppColors.white,
                   ),
-                  hint: const Text('Pilih jenis inventaris'),
+                  hint: const Text(
+                    'Pilih jenis inventaris',
+                    style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                  ),
                   items: availableJenis
                       .map((j) => DropdownMenuItem(
-                          value: '${j.jenisId}', child: Text(j.jenisNama)))
+                          value: '${j.jenisId}',
+                          child: Text(j.jenisNama,
+                              style: const TextStyle(
+                                  fontSize: 13, color: AppColors.textPrimary))))
                       .toList(),
                   onChanged: widget.jenisLocked
                       ? null

@@ -20,6 +20,8 @@ class RealisasiModel {
   final int? realApprovedBy;
   final String? realApprovedAt;
   final String? realFoto;
+  final int realIsTindakLanjut;
+  final String? realTindakLanjutCatatan;
   final Map<String, dynamic>? jadwal;
   final Map<String, dynamic>? inventaris;
   final Map<String, dynamic>? teknisi;
@@ -45,11 +47,22 @@ class RealisasiModel {
     this.realApprovedBy,
     this.realApprovedAt,
     this.realFoto,
+    this.realIsTindakLanjut = 0,
+    this.realTindakLanjutCatatan,
     this.jadwal,
     this.inventaris,
     this.teknisi,
     this.hasilChecklist = const [],
   });
+
+  static int _parseIsTindakLanjut(dynamic val) {
+    if (val == null) return 0;
+    if (val is int) return val;
+    if (val is bool) return val ? 1 : 0;
+    final str = val.toString().trim().toLowerCase();
+    if (str == '1' || str == 'true') return 1;
+    return 0;
+  }
 
   factory RealisasiModel.fromJson(Map<String, dynamic> j) => RealisasiModel(
         realId: j['real_id'],
@@ -61,7 +74,7 @@ class RealisasiModel {
         realJamSelesai: j['real_jam_selesai'],
         realWeekNumber: j['real_week_number'] ?? 0,
         realBulan: j['real_bulan'] ?? 0,
-        realTahun: j['real_tahun'] ?? DateTime.now().year,
+        realTahun: j['real_tahun'] ?? 0,
         realKondisiAkhir: j['real_kondisi_akhir'],
         realKeterangan: j['real_keterangan'],
         realStatus: j['real_status'] ?? 'Draft',
@@ -71,6 +84,10 @@ class RealisasiModel {
         realApprovedBy: j['real_approved_by'],
         realApprovedAt: j['real_approved_at'],
         realFoto: j['real_foto'],
+        realIsTindakLanjut: _parseIsTindakLanjut(
+            j['is_tindak_lanjut'] ?? j['real_is_tindak_lanjut']),
+        realTindakLanjutCatatan:
+            j['tindak_lanjut_info'] ?? j['real_tindak_lanjut_catatan'],
         jadwal: (j['jadwal'] ?? j['real_jadwal']) != null
             ? Map<String, dynamic>.from(j['jadwal'] ?? j['real_jadwal'])
             : null,
@@ -90,6 +107,12 @@ class RealisasiModel {
 
   bool get selesai => realStatus == 'Selesai';
   bool get isDraft => realStatus == 'Draft';
+  bool get isRusak => (realKondisiAkhir ?? '').trim().toLowerCase() == 'rusak';
+  bool get isPerluPerhatian =>
+      (realKondisiAkhir ?? '').trim().toLowerCase() == 'perlu perhatian';
+  bool get isKendala => isRusak || isPerluPerhatian;
+  bool get isTindakLanjut => realIsTindakLanjut == 1;
   String get invNama => inventaris?['inv_nama'] ?? '-';
   String get invNo => inventaris?['inv_no'] ?? '-';
+  String get invSerialNumber => inventaris?['inv_serial_number'] ?? '-';
 }
