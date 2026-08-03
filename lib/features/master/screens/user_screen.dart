@@ -88,16 +88,22 @@ class _UserScreenState extends State<UserScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.read<AuthProvider>();
+    final role = (auth.user?['user_jabatan'] ?? '').toString().toLowerCase();
+    final isSelfOnly = ['user', 'teknisi', 'it_support'].contains(role);
+
     return Scaffold(
       backgroundColor: _kPageBg,
-      appBar: AppBar(title: const Text('Kelola User')),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _openForm(),
-        tooltip: 'Tambah User',
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.white,
-        child: const Icon(Icons.person_add_outlined),
-      ),
+      appBar: AppBar(title: Text(isSelfOnly ? 'Informasi User' : 'Kelola User')),
+      floatingActionButton: isSelfOnly
+          ? null
+          : FloatingActionButton(
+              onPressed: () => _openForm(),
+              tooltip: 'Tambah User',
+              backgroundColor: AppColors.primary,
+              foregroundColor: AppColors.white,
+              child: const Icon(Icons.person_add_outlined),
+            ),
       body: LayoutBuilder(
         builder: (context, constraints) {
           final maxContentWidth =
@@ -106,58 +112,59 @@ class _UserScreenState extends State<UserScreen> {
             child: SizedBox(
               width: maxContentWidth,
               child: Column(children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(AppRadius.md),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.02),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: TextField(
-                      controller: _searchCtrl,
-                      style: const TextStyle(fontSize: 12.5),
-                      decoration: InputDecoration(
-                        hintText: 'Cari nama atau NIK...',
-                        prefixIcon: const Icon(Icons.search,
-                            size: 18, color: AppColors.textSecondary),
-                        suffixIcon: _searchQuery.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.clear_rounded,
-                                    size: 18, color: AppColors.textSecondary),
-                                onPressed: () {
-                                  _searchCtrl.clear();
-                                  setState(() => _searchQuery = '');
-                                },
-                              )
-                            : null,
-                        filled: true,
-                        fillColor: Colors.white,
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 8),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(AppRadius.md),
-                          borderSide: const BorderSide(color: AppColors.border),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(AppRadius.md),
-                          borderSide: const BorderSide(color: AppColors.border),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(AppRadius.md),
-                          borderSide: const BorderSide(
-                              color: AppColors.primary, width: 1.5),
+                if (!isSelfOnly)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.02),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: TextField(
+                        controller: _searchCtrl,
+                        style: const TextStyle(fontSize: 12.5),
+                        decoration: InputDecoration(
+                          hintText: 'Cari nama atau NIK...',
+                          prefixIcon: const Icon(Icons.search,
+                              size: 18, color: AppColors.textSecondary),
+                          suffixIcon: _searchQuery.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear_rounded,
+                                      size: 18, color: AppColors.textSecondary),
+                                  onPressed: () {
+                                    _searchCtrl.clear();
+                                    setState(() => _searchQuery = '');
+                                  },
+                                )
+                              : null,
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(AppRadius.md),
+                            borderSide: const BorderSide(color: AppColors.border),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(AppRadius.md),
+                            borderSide: const BorderSide(color: AppColors.border),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(AppRadius.md),
+                            borderSide: const BorderSide(
+                                color: AppColors.primary, width: 1.5),
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
                 Expanded(
                   child: Consumer<MasterProvider>(
                     builder: (_, p, __) {
@@ -179,17 +186,22 @@ class _UserScreenState extends State<UserScreen> {
                         );
                       }
                       final filteredUsers = p.userList.where((user) {
+                        if (isSelfOnly && authUserId != null) {
+                          return user.userId == authUserId;
+                        }
                         final q = _searchQuery.toLowerCase();
                         return user.userNama.toLowerCase().contains(q) ||
                             user.userNik.toLowerCase().contains(q);
                       }).toList();
                       if (filteredUsers.isEmpty) {
                         return EmptyState(
-                          message: _searchQuery.isEmpty
-                              ? 'Belum ada user'
-                              : 'User tidak ditemukan',
-                          actionLabel: 'Tambah',
-                          onAction: () => _openForm(),
+                          message: isSelfOnly
+                              ? 'Informasi user tidak ditemukan'
+                              : (_searchQuery.isEmpty
+                                  ? 'Belum ada user'
+                                  : 'User tidak ditemukan'),
+                          actionLabel: isSelfOnly ? null : 'Tambah',
+                          onAction: isSelfOnly ? null : () => _openForm(),
                         );
                       }
                       return ListView.separated(
@@ -269,6 +281,33 @@ class _UserScreenState extends State<UserScreen> {
                                           WrapCrossAlignment.center,
                                       children: [
                                         _JabatanBadge(user.jabatanLabel),
+                                        if (user.userDivisi.isNotEmpty)
+                                          Builder(builder: (context) {
+                                            final divColor = AppDivisiColors.getColor(user.userDivisi);
+                                            final divIcon = AppDivisiColors.getIcon(user.userDivisi);
+                                            return Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: divColor.withValues(alpha: 0.12),
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(divIcon, size: 11, color: divColor),
+                                                  const SizedBox(width: 3),
+                                                  Text(
+                                                    user.userDivisi.toUpperCase(),
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      fontWeight: FontWeight.w700,
+                                                      color: divColor,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          }),
                                         if (isCurrentUser) const _SelfBadge(),
                                         _StatusBadge(isActive: user.aktif),
                                         if (user.userCabang != null)
@@ -290,7 +329,7 @@ class _UserScreenState extends State<UserScreen> {
                               trailing: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    if (!isCurrentUser)
+                                    if (!isSelfOnly && !isCurrentUser)
                                       _MinimalSwitch(
                                         value: user.aktif,
                                         loading: isToggling,
@@ -467,6 +506,7 @@ class _UserFormState extends State<_UserForm> {
   static const _jabatanList = [
     {'value': 'admin', 'label': 'Admin'},
     {'value': 'user', 'label': 'User'},
+    {'value': 'manager', 'label': 'Manager'},
     {'value': 'teknisi', 'label': 'Teknisi'},
     {'value': 'it_support', 'label': 'IT Support'},
   ];
@@ -577,59 +617,115 @@ class _UserFormState extends State<_UserForm> {
                       ? 'NIK wajib diisi'
                       : null),
               const SizedBox(height: 14),
-              DropdownButtonFormField<String>(
-                  initialValue: _jabatan,
+              Builder(builder: (context) {
+                final auth = context.read<AuthProvider>();
+                final reqRole = (auth.user?['user_jabatan'] ?? '').toString().toLowerCase();
+                final isSelfOnly = ['user', 'teknisi', 'it_support'].contains(reqRole);
+                final isAdmin = reqRole == 'admin';
+
+                final currentLabel = _jabatanList.firstWhere(
+                  (j) => j['value'] == _jabatan,
+                  orElse: () => {'label': _jabatan},
+                )['label']!;
+
+                if (isSelfOnly) {
+                  return TextFormField(
+                    initialValue: currentLabel,
+                    enabled: false,
+                    decoration: const InputDecoration(
+                      labelText: 'Jabatan',
+                      prefixIcon: Icon(Icons.work_outline),
+                      filled: true,
+                      fillColor: Color(0xFFF1F5F9),
+                    ),
+                  );
+                }
+
+                if (_jabatan == 'manager' && isAdmin) {
+                  return TextFormField(
+                    initialValue: 'Manager',
+                    enabled: false,
+                    decoration: const InputDecoration(
+                      labelText: 'Jabatan (Manager)',
+                      prefixIcon: Icon(Icons.work_outline),
+                      filled: true,
+                      fillColor: Color(0xFFF1F5F9),
+                    ),
+                  );
+                }
+
+                final availableItems = isAdmin
+                    ? _jabatanList.where((j) => j['value'] != 'manager').toList()
+                    : _jabatanList;
+                final validJabatanKeys = availableItems.map((j) => j['value']!).toList();
+                final safeJabatan = validJabatanKeys.contains(_jabatan) ? _jabatan : null;
+
+                return DropdownButtonFormField<String>(
+                  value: safeJabatan,
                   style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
                   decoration: const InputDecoration(
                       labelText: 'Jabatan',
                       prefixIcon: Icon(Icons.work_outline)),
-                  items: _jabatanList
+                  items: availableItems
                       .map((j) => DropdownMenuItem(
                           value: j['value'],
                           child: Text(j['label']!,
                               style: const TextStyle(
                                   fontSize: 13, color: AppColors.textPrimary))))
                       .toList(),
-                  onChanged: (v) => setState(() => _jabatan = v!)),
+                  onChanged: (v) {
+                    if (v != null) setState(() => _jabatan = v);
+                  },
+                  validator: (v) => v == null ? 'Jabatan wajib dipilih' : null,
+                );
+              }),
               const SizedBox(height: 14),
-              DropdownButtonFormField<String>(
-                initialValue: _divisi,
-                style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
-                decoration: const InputDecoration(
-                    labelText: 'Divisi',
-                    prefixIcon: Icon(Icons.account_tree_outlined)),
-                items: (master.divisiMetadata.isNotEmpty
-                        ? master.divisiMetadata
-                        : UserModel.divisiList)
-                    .map((div) => DropdownMenuItem(
-                        value: div,
-                        child: Text(div,
-                            style: const TextStyle(
-                                fontSize: 13, color: AppColors.textPrimary))))
-                    .toList(),
-                onChanged: (v) => setState(() => _divisi = v),
-                validator: (v) => v == null ? 'Divisi wajib dipilih' : null,
-              ),
+              Builder(builder: (context) {
+                final divisiItems = master.divisiMetadata.isNotEmpty
+                    ? master.divisiMetadata
+                    : UserModel.divisiList;
+                final safeDivisi = divisiItems.contains(_divisi) ? _divisi : null;
+                return DropdownButtonFormField<String>(
+                  value: safeDivisi,
+                  style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
+                  decoration: const InputDecoration(
+                      labelText: 'Divisi',
+                      prefixIcon: Icon(Icons.account_tree_outlined)),
+                  items: divisiItems
+                      .map((div) => DropdownMenuItem(
+                          value: div,
+                          child: Text(div,
+                              style: const TextStyle(
+                                  fontSize: 13, color: AppColors.textPrimary))))
+                      .toList(),
+                  onChanged: (v) => setState(() => _divisi = v),
+                  validator: (v) => v == null ? 'Divisi wajib dipilih' : null,
+                );
+              }),
               const SizedBox(height: 14),
-              DropdownButtonFormField<String>(
-                initialValue: _cabang,
-                style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
-                decoration: const InputDecoration(
-                  labelText: 'Cabang',
-                  prefixIcon: Icon(Icons.business_outlined),
-                ),
-                items: master.pabrikList
-                    .map(
-                      (pabrik) => DropdownMenuItem(
-                        value: pabrik.pabKode,
-                        child: Text(pabrik.displayLabel,
-                            style: const TextStyle(
-                                fontSize: 13, color: AppColors.textPrimary)),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (v) => setState(() => _cabang = v),
-              ),
+              Builder(builder: (context) {
+                final pabrikKodes = master.pabrikList.map((p) => p.pabKode).toList();
+                final safeCabang = pabrikKodes.contains(_cabang) ? _cabang : null;
+                return DropdownButtonFormField<String>(
+                  value: safeCabang,
+                  style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
+                  decoration: const InputDecoration(
+                    labelText: 'Cabang',
+                    prefixIcon: Icon(Icons.business_outlined),
+                  ),
+                  items: master.pabrikList
+                      .map(
+                        (pabrik) => DropdownMenuItem(
+                          value: pabrik.pabKode,
+                          child: Text(pabrik.displayLabel,
+                              style: const TextStyle(
+                                  fontSize: 13, color: AppColors.textPrimary)),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) => setState(() => _cabang = v),
+                );
+              }),
               const SizedBox(height: 14),
               if (isEdit && _isEditingSelf) ...[
                 TextFormField(

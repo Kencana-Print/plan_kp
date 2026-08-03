@@ -15,6 +15,7 @@ import '../../../core/widgets/app_notifier.dart';
 import '../widgets/realisasi_detail_sheet.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/date_formatter.dart';
+import '../widgets/export_pdf_dialog.dart';
 
 class RealisasiHistoryScreen extends StatefulWidget {
   final String? initialTab;
@@ -44,8 +45,13 @@ class _RealisasiHistoryScreenState extends State<RealisasiHistoryScreen> {
   Future<void> _loadDraftData() async {
     setState(() => _loadingDraft = true);
     try {
+      final auth = context.read<AuthProvider>();
+      final role = auth.user?['user_jabatan'];
+      final isManager = role == 'manager';
       final provider = context.read<JadwalProvider>();
-      final drafts = await provider.fetchDraftRealisasi();
+      final drafts = await provider.fetchDraftRealisasi(
+        byDivisi: isManager ? false : true,
+      );
       setState(() {
         _draftRealisasiList = drafts;
       });
@@ -341,9 +347,11 @@ class _RealisasiHistoryScreenState extends State<RealisasiHistoryScreen> {
             tooltip: 'Export Laporan PDF',
             icon: const Icon(Icons.picture_as_pdf_rounded),
             onPressed: () {
-              AppNotifier.showWarning(
+              final p = context.read<JadwalProvider>();
+              ExportPdfDialog.show(
                 context,
-                'Fitur ini akan rilis di versi selanjutnya. Info lebih lanjut silahkan hubungi divisi IT.',
+                realisasiList: p.realisasiList,
+                jadwalList: p.jadwalList,
               );
             },
           ),
@@ -1557,8 +1565,8 @@ class _SummaryCard extends StatelessWidget {
             _DonutChart(
                 progress: rate,
                 size: 100,
-                doneColor: AppColors.success,
-                remainingColor: AppColors.border),
+                doneColor: const Color(0xFF059669),
+                remainingColor: const Color(0xFFE2E8F0)),
             const SizedBox(width: 20),
             Expanded(
               child: Column(
@@ -1568,9 +1576,9 @@ class _SummaryCard extends StatelessWidget {
                       style: const TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   _rowMetric('Target', '${metrics.targetCount}',
-                      AppColors.textSecondary),
+                      const Color(0xFF059669)),
                   _rowMetric(
-                      'Realisasi', '${metrics.doneCount}', AppColors.success),
+                      'Realisasi', '${metrics.doneCount}', const Color(0xFF0052FF)),
                 ],
               ),
             )

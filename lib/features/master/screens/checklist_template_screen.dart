@@ -840,11 +840,11 @@ class _ChecklistTab extends StatelessWidget {
                 color: const Color(0xFFF8FAFC),
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
                 child: Row(children: [
-                  Text('$jenisCount kelompok jenis',
+                  Text('Terdapat $jenisCount Jenis Inventaris',
                       style: const TextStyle(
                           fontSize: 12, color: AppColors.textSecondary)),
                   if (query.isNotEmpty)
-                    const Text(' · hasil pencarian',
+                    const Text(' Hasil Pencarian',
                         style: TextStyle(
                             fontSize: 12, color: AppColors.textSecondary)),
                 ]),

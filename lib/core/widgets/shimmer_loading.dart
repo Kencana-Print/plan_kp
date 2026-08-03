@@ -32,27 +32,29 @@ class _AppShimmerState extends State<AppShimmer> with SingleTickerProviderStateM
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return ShaderMask(
-          blendMode: BlendMode.srcIn,
-          shaderCallback: (bounds) {
-            return LinearGradient(
-              begin: Alignment(-2.0 + _controller.value * 4.0, -1.0),
-              end: Alignment(0.0 + _controller.value * 4.0, 1.0),
-              colors: const [
-                Color(0xFFE2E8F0), // Slate 200 base
-                Color(0xFFF8FAFC), // Slate 50 dynamic shine
-                Color(0xFFE2E8F0), // Slate 200 base
-              ],
-              stops: const [0.3, 0.5, 0.7],
-            ).createShader(bounds);
-          },
-          child: child,
-        );
-      },
-      child: widget.child,
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          return ShaderMask(
+            blendMode: BlendMode.srcIn,
+            shaderCallback: (bounds) {
+              return LinearGradient(
+                begin: Alignment(-2.0 + _controller.value * 4.0, -1.0),
+                end: Alignment(0.0 + _controller.value * 4.0, 1.0),
+                colors: const [
+                  Color(0xFFE2E8F0), // Slate 200 base
+                  Color(0xFFF8FAFC), // Slate 50 dynamic shine
+                  Color(0xFFE2E8F0), // Slate 200 base
+                ],
+                stops: const [0.3, 0.5, 0.7],
+              ).createShader(bounds);
+            },
+            child: child,
+          );
+        },
+        child: widget.child,
+      ),
     );
   }
 }

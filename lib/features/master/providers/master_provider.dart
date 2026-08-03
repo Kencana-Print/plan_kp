@@ -87,6 +87,7 @@ class MasterProvider extends ChangeNotifier {
   Future<void> fetchInventaris(
       {String? kategori,
       String? jenis,
+      String? pabrik,
       String? q,
       bool showLoading = true,
       bool updateKategoriMap = true}) async {
@@ -95,6 +96,7 @@ class MasterProvider extends ChangeNotifier {
       final query = {
         if (kategori != null) 'kategori': kategori,
         if (jenis != null) 'jenis': jenis,
+        if (pabrik != null) 'pabrik': pabrik,
         if (q != null) 'q': q,
       };
       final res = await ApiClient.get(ApiConfig.inventaris, query: query);

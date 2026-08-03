@@ -462,7 +462,7 @@ class _RealisasiFormScreenState extends State<RealisasiFormScreen> {
 
   Widget _buildPhotoSection() {
     return _buildSectionCard(
-      title: 'Bukti Foto Realisasi',
+      title: 'Bukti Foto Realisasi (opsional)',
       subtitle:
           'Tambahkan foto kondisi unit sebagai bukti pendukung penyelesaian maintenance.',
       child: Column(
@@ -673,7 +673,7 @@ class _RealisasiFormScreenState extends State<RealisasiFormScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'Progress Checklist',
+                'Checklist',
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
               ),
               Text(
@@ -715,7 +715,7 @@ class _RealisasiFormScreenState extends State<RealisasiFormScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Pilih simpan sebagai Draft (Tunda TTD) atau lanjutkan Tanda Tangan PIC untuk menyelesaikan realisasi.',
+              'Pilih simpan sebagai Draft (Tunda TTD) atau lanjutkan Tanda Tangan PIC untuk menyelesaikan maintenance.',
               style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
             ),
             const SizedBox(height: 14),

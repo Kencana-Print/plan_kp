@@ -99,7 +99,7 @@ class _JenisScreenState extends State<JenisScreen> {
                             controller: _searchCtrl,
                             style: const TextStyle(fontSize: 12.5),
                             decoration: InputDecoration(
-                              hintText: 'Cari nama atau kategori jenis...',
+                              hintText: 'Cari Nama Jenis...',
                               prefixIcon: const Icon(Icons.search, size: 18, color: AppColors.textSecondary),
                               suffixIcon: _searchCtrl.text.isNotEmpty
                                   ? IconButton(
@@ -246,15 +246,33 @@ class _JenisCard extends StatelessWidget {
                     color: isInactive ? AppColors.textSecondary : AppColors.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  jenis.jenisKategori,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
+                const SizedBox(height: 4),
+                Builder(builder: (context) {
+                  final divisiColor = AppDivisiColors.getColor(jenis.jenisKategori);
+                  final divisiIcon = AppDivisiColors.getIcon(jenis.jenisKategori);
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: divisiColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(divisiIcon, size: 11, color: divisiColor),
+                        const SizedBox(width: 4),
+                        Text(
+                          jenis.jenisKategori.toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: divisiColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
               ],
             ),
           ),
@@ -607,8 +625,8 @@ class _JenisFormState extends State<_JenisForm> {
                       SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Atur jeda waktu (hari) agar satu unit mesin tidak diservis dua kali terlalu berdekatan. '
-                          'Contoh: isi 30 berarti setiap mesin baru bisa diservis lagi setelah 30 hari. '
+                          'Atur gap waktu (hari) agar satu inventaris tidak dapat dimaintenance dalam periode yang berdekatan. '
+                          'Contoh: isi 30 berarti setiap inventaris baru bisa dimaintenance lagi setelah 30 hari. '
                           'Isi 0 jika tidak ada pembatasan.',
                           style: TextStyle(fontSize: 12, color: AppColors.primary, height: 1.5),
                         ),

@@ -18,6 +18,54 @@ class AppColors {
   static const white = Color.fromRGBO(255, 255, 255, 1);
 }
 
+class AppDivisiColors {
+  static Color getColor(String? divisi) {
+    if (divisi == null || divisi.trim().isEmpty) return AppColors.primary;
+    switch (divisi.trim().toLowerCase()) {
+      case 'it':
+        return const Color(0xFF4F46E5); // Indigo enterprise
+      case 'ga':
+        return const Color(0xFFEA580C); // Orange warm
+      case 'driver':
+        return const Color(0xFF0D9488); // Teal rich
+      case 'hrd':
+      case 'hr':
+        return const Color(0xFFE11D48); // Rose / Pink
+      case 'fat':
+      case 'finance':
+        return const Color(0xFF0284C7); // Sky Blue / Finance
+      case 'logistik':
+      case 'log':
+        return const Color(0xFF7C3AED); // Purple / Violet
+      default:
+        return AppColors.primary;
+    }
+  }
+
+  static IconData getIcon(String? divisi) {
+    if (divisi == null || divisi.trim().isEmpty) return Icons.business_rounded;
+    switch (divisi.trim().toLowerCase()) {
+      case 'it':
+        return Icons.computer_rounded;
+      case 'ga':
+        return Icons.precision_manufacturing_rounded;
+      case 'driver':
+        return Icons.local_shipping_rounded;
+      case 'hrd':
+      case 'hr':
+        return Icons.people_alt_rounded;
+      case 'fat':
+      case 'finance':
+        return Icons.account_balance_wallet_rounded;
+      case 'logistik':
+      case 'log':
+        return Icons.inventory_2_rounded;
+      default:
+        return Icons.business_rounded;
+    }
+  }
+}
+
 class AppBreakpoints {
   static const mobile = 600.0;
   static const tablet = 960.0;

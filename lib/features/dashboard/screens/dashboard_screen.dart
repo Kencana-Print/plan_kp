@@ -28,10 +28,32 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   static const _pageBg = AppColors.surface;
+  static const List<String> _monthNames = [
+    'Januari',
+    'Februari',
+    'Maret',
+    'April',
+    'Mei',
+    'Juni',
+    'Juli',
+    'Agustus',
+    'September',
+    'Oktober',
+    'November',
+    'Desember'
+  ];
   bool _hasCheckedPendingTtd = false;
-  bool _isLoadingData = true;
-
+  bool _isLoadingData = false;
   List<RealisasiModel> _pendingDrafts = [];
+  int _heroCardPageIndex = 0;
+  final PageController _heroCardPageController = PageController();
+  DateTime _selectedTargetMonth = DateTime(DateTime.now().year, DateTime.now().month);
+
+  @override
+  void dispose() {
+    _heroCardPageController.dispose();
+    super.dispose();
+  }
 
   void _showPendingTtdDialog(List<RealisasiModel> drafts) {
     AwesomeDialog(
@@ -53,6 +75,167 @@ class _DashboardScreenState extends State<DashboardScreen> {
         );
       },
     ).show();
+  }
+
+  Future<void> _showMonthYearPicker(BuildContext context) async {
+    int tempBulan = _selectedTargetMonth.month;
+    int tempTahun = _selectedTargetMonth.year;
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              titlePadding: const EdgeInsets.fromLTRB(20, 18, 16, 8),
+              title: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Pilih Periode',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded,
+                        color: AppColors.textSecondary, size: 20),
+                    onPressed: () => Navigator.pop(context),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Tahun:',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600, fontSize: 13),
+                      ),
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.chevron_left_rounded,
+                                size: 20),
+                            onPressed: () {
+                              setDialogState(() {
+                                tempTahun--;
+                              });
+                            },
+                          ),
+                          Text(
+                            '$tempTahun',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700, fontSize: 15),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.chevron_right_rounded,
+                                size: 20),
+                            onPressed: () {
+                              setDialogState(() {
+                                tempTahun++;
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 16, color: AppColors.border),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: 280,
+                    height: 180,
+                    child: GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 4,
+                        childAspectRatio: 1.5,
+                        crossAxisSpacing: 8,
+                        mainAxisSpacing: 8,
+                      ),
+                      itemCount: 12,
+                      itemBuilder: (context, index) {
+                        final bulanNum = index + 1;
+                        final isSelected = tempBulan == bulanNum;
+                        final name = _monthNames[index].substring(0, 3);
+
+                        return InkWell(
+                          onTap: () {
+                            setDialogState(() {
+                              tempBulan = bulanNum;
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? AppColors.primary
+                                  : const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: isSelected
+                                    ? AppColors.primary
+                                    : AppColors.border,
+                              ),
+                            ),
+                            child: Text(
+                              name,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.w500,
+                                color: isSelected
+                                    ? Colors.white
+                                    : AppColors.textPrimary,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    setState(() {
+                      _selectedTargetMonth = DateTime(tempTahun, tempBulan);
+                    });
+                    context
+                        .read<JadwalProvider>()
+                        .fetchHariLiburForMonth(_selectedTargetMonth);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    minimumSize: const Size(90, 36),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text('Pilih',
+                      style: TextStyle(fontSize: 13, color: Colors.white)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   int _isoWeekNumber(DateTime date) {
@@ -109,9 +292,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   List<DateTime> _effectiveScheduleDatesInMonth(
-      JadwalModel j, DateTime start, DateTime end, Set<int> holidays) {
+      JadwalModel j, DateTime start, DateTime end, Set<int> holidays,
+      {DateTime? lastRealisasiDate}) {
     final jStart = DateTime.tryParse(j.jdwTglMulai);
     if (jStart == null) return [];
+
+    final gapHari = j.jdwGapHari;
+    if (gapHari > 0 && lastRealisasiDate != null) {
+      final nextEligibleDate = lastRealisasiDate.add(Duration(days: gapHari));
+      final endMonthDate = DateTime(end.year, end.month, end.day, 23, 59, 59);
+      if (endMonthDate.isBefore(nextEligibleDate)) {
+        return [];
+      }
+    }
+
     final rangeStart = jStart.isAfter(start) ? jStart : start;
     final jEndStr = j.jdwTglSelesai;
     final jEnd = (jEndStr == null || jEndStr.isEmpty)
@@ -149,17 +343,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return dates;
   }
 
+  DateTime? _getLastRealisasiDateForJadwal(int jdwId, List<RealisasiModel> realisasiList) {
+    final list = realisasiList.where((r) => r.realJadwalId == jdwId && r.realStatus == 'Selesai').toList();
+    if (list.isEmpty) return null;
+    list.sort((a, b) => b.realTgl.compareTo(a.realTgl));
+    return DateTime.tryParse(list.first.realTgl);
+  }
+
   BoxDecoration _surfaceCard({Color? borderColor}) => BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: borderColor ?? AppColors.border,
+          color: borderColor ?? const Color(0xFFE2E8F0),
           width: 1,
         ),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x0A000000),
-            blurRadius: 10,
+            color: Color(0x0A0F172A),
+            blurRadius: 8,
             offset: Offset(0, 2),
           ),
         ],
@@ -309,43 +510,52 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return Row(
       children: [
+        // Avatar dengan Ring White Border & Initial
         Container(
           padding: const EdgeInsets.all(2),
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             border: Border.all(
-              color: Colors.white.withValues(alpha: 0.8),
-              width: 2,
+              color: Colors.white,
+              width: 2.2,
             ),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x26000000),
+                blurRadius: 8,
+                offset: Offset(0, 2),
+              ),
+            ],
           ),
           child: CircleAvatar(
-            radius: 22,
-            backgroundColor: AppColors.primarySoft,
+            radius: 20,
+            backgroundColor: const Color(0xFF0038FF),
             child: Text(
               _userInitial(user),
               style: const TextStyle(
-                color: AppColors.primary,
+                color: Colors.white,
                 fontSize: 18,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w900,
               ),
             ),
           ),
         ),
         const SizedBox(width: 12),
+        // Nama, Greeting, Tanggal, dan Role Badge
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 _greeting(),
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.85),
-                  fontSize: 12,
+                  color: Colors.white.withValues(alpha: 0.9),
+                  fontSize: 12.5,
                   fontWeight: FontWeight.w600,
-                  letterSpacing: 0.3,
                 ),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 1),
               Text(
                 _userName(user).toUpperCase(),
                 maxLines: 1,
@@ -353,30 +563,40 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 17,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w900,
                   letterSpacing: 0.3,
                 ),
               ),
-              Text(
-                DateFormatter.toDisplayDateTime(DateTime.now()),
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.85),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: 0.3,
-                ),
-              ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 3),
               Row(
                 children: [
+                  Icon(
+                    Icons.calendar_today_rounded,
+                    size: 10,
+                    color: Colors.white.withValues(alpha: 0.8),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    DateFormatter.toDisplayDateTime(DateTime.now()),
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.85),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 3,
+                      horizontal: 8,
+                      vertical: 2,
                     ),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(99),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.3),
+                        width: 0.8,
+                      ),
                     ),
                     child: Text(
                       role == 'manager'
@@ -384,37 +604,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           : '${user['user_divisi'] ?? 'Teknisi'}'.toUpperCase(),
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
                         letterSpacing: 0.4,
                       ),
                     ),
                   ),
-                  if (role == 'manager') ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.amber.withValues(alpha: 0.25),
-                        borderRadius: BorderRadius.circular(99),
-                        border: Border.all(
-                          color: Colors.amber.withValues(alpha: 0.5),
-                        ),
-                      ),
-                      child: const Text(
-                        'Semua Divisi',
-                        style: TextStyle(
-                          color: Colors.amber,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.4,
-                        ),
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ],
@@ -1143,14 +1338,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  void _tabToHistory(int index) {
-    if (index == 1) {
-      _nav(const RealisasiHistoryScreen());
-    } else {
-      _nav(const jadwal_screen.JadwalScreen(initialIndex: 0));
-    }
-  }
-
   Future<void> _openJadwalDetail(
     JadwalModel jadwal, {
     bool closeSheetFirst = false,
@@ -1331,7 +1518,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     int doneBulanIni = 0;
     int totalTargetBulanIni = 0;
 
-    final summary = p.dashboardSummary['summary_cards'];
+    final isCurrentMonthSelected = _selectedTargetMonth.month == currentMonth &&
+        _selectedTargetMonth.year == currentYear;
+
+    final summary = isCurrentMonthSelected ? p.dashboardSummary['summary_cards'] : null;
     if (summary != null) {
       jadwalAktif = summary['jadwal_aktif'] ?? 0;
       pendingTasks = summary['pending_tasks'] ?? 0;
@@ -1352,17 +1542,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
       pendingTasks = overdueTasks + dueTodayTasks;
 
       doneBulanIni = p.realisasiList.where((r) {
-        return r.realBulan == currentMonth && r.realTahun == currentYear;
+        return r.realBulan == _selectedTargetMonth.month && r.realTahun == _selectedTargetMonth.year;
       }).length;
 
-      final startOfMonth = DateTime(now.year, now.month, 1);
-      final endOfMonth = DateTime(now.year, now.month + 1, 0);
-      final holidayDays = p.getHolidayDaysForMonth(now);
+      final startOfMonth = DateTime(_selectedTargetMonth.year, _selectedTargetMonth.month, 1);
+      final endOfMonth = DateTime(_selectedTargetMonth.year, _selectedTargetMonth.month + 1, 0);
+      final holidayDays = p.getHolidayDaysForMonth(_selectedTargetMonth);
 
       for (final j in p.jadwalList) {
         if (j.jdwStatus != 'Draft') continue;
+        final lastRealDate = _getLastRealisasiDateForJadwal(j.jdwId, p.realisasiList);
         final count =
-            _effectiveScheduleDatesInMonth(j, startOfMonth, endOfMonth, holidayDays).length;
+            _effectiveScheduleDatesInMonth(j, startOfMonth, endOfMonth, holidayDays, lastRealisasiDate: lastRealDate).length;
         final perTarget = (j.jdwTarget ?? 0) > 0 ? j.jdwTarget! : (j.jdwTotalUnit ?? 0);
         totalTargetBulanIni += count * perTarget;
       }
@@ -1381,34 +1572,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 width: maxContentWidth,
                 child: CustomScrollView(
                   slivers: [
-                    // 1. Header Section
+                    // 1. Modern Gradient Header Section
                     SliverToBoxAdapter(
                       child: Container(
-                        padding: const EdgeInsets.fromLTRB(20, 52, 20, 24),
+                        padding: EdgeInsets.fromLTRB(16, MediaQuery.of(context).padding.top + 10, 16, 10),
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
-                            colors: [AppColors.primaryDark, AppColors.primary],
-                            begin: Alignment.topLeft,
+                            colors: [Color(0xFF0A2257), Color(0xFF1847B0), Color(0xFF2B5FD4)],
+                            begin: Alignment.topCenter,
                             end: Alignment.bottomRight,
+                            stops: [0.0, 0.5, 1.0],
                           ),
                           borderRadius: const BorderRadius.vertical(
-                            bottom: Radius.circular(28),
+                            bottom: Radius.circular(26),
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: AppColors.primaryDark.withValues(alpha: 0.2),
-                              blurRadius: 16,
+                              color: const Color(0xFF0A2257).withValues(alpha: 0.28),
+                              blurRadius: 20,
                               offset: const Offset(0, 6),
                             ),
                           ],
                         ),
                         child: Container(
-                          padding: const EdgeInsets.all(16),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(20),
+                            color: Colors.white.withValues(alpha: 0.09),
+                            borderRadius: BorderRadius.circular(18),
                             border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.2),
+                              color: Colors.white.withValues(alpha: 0.15),
+                              width: 1,
                             ),
                           ),
                           child: Row(
@@ -1433,14 +1626,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     );
                                   },
                                 ),
-                                const SizedBox(width: 8),
+                                const SizedBox(width: 6),
                               ],
                               Container(
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFDC1E32).withValues(alpha: 0.22),
+                                  color: const Color(0xFFDC1E32).withValues(alpha: 0.18),
                                   shape: BoxShape.circle,
                                   border: Border.all(
-                                    color: const Color(0xFFFF6B6B).withValues(alpha: 0.45),
+                                    color: const Color(0xFFFF6B6B).withValues(alpha: 0.35),
                                     width: 1,
                                   ),
                                 ),
@@ -1448,7 +1641,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   icon: const Icon(
                                     Icons.logout_rounded,
                                     color: Color(0xFFFF6B6B),
-                                    size: 20,
+                                    size: 19,
                                   ),
                                   tooltip: 'Logout',
                                   onPressed: _logout,
@@ -1463,26 +1656,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     if (role != 'admin' && _pendingDrafts.isNotEmpty)
                       SliverToBoxAdapter(
                         child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+                          padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
                           child: Material(
                             color: Colors.transparent,
                             child: InkWell(
                               onTap: () => _nav(const RealisasiHistoryScreen(initialTab: 'Draft')),
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(14),
                               child: Container(
-                                padding: const EdgeInsets.all(14),
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                                 decoration: BoxDecoration(
                                   color: AppColors.warning.withValues(alpha: 0.08),
-                                  borderRadius: BorderRadius.circular(16),
+                                  borderRadius: BorderRadius.circular(14),
                                   border: Border.all(
                                     color: AppColors.warning.withValues(alpha: 0.4),
-                                    width: 1.5,
+                                    width: 1.2,
                                   ),
                                 ),
                                 child: Row(
                                   children: [
                                     Container(
-                                      padding: const EdgeInsets.all(10),
+                                      padding: const EdgeInsets.all(6),
                                       decoration: BoxDecoration(
                                         color: AppColors.warning.withValues(alpha: 0.15),
                                         shape: BoxShape.circle,
@@ -1490,10 +1683,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                       child: const Icon(
                                         Icons.draw_rounded,
                                         color: AppColors.warning,
-                                        size: 22,
+                                        size: 20,
                                       ),
                                     ),
-                                    const SizedBox(width: 12),
+                                    const SizedBox(width: 10),
                                     Expanded(
                                       child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1506,11 +1699,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                               color: AppColors.textPrimary,
                                             ),
                                           ),
-                                          const SizedBox(height: 2),
+                                          const SizedBox(height: 1),
                                           const Text(
-                                            'Harap minta tanda tangan digital PIC lokasi untuk menyelesaikan laporan draft.',
+                                            'Harap minta tanda tangan digital PIC lokasi.',
                                             style: TextStyle(
-                                              fontSize: 11,
+                                              fontSize: 12,
                                               fontWeight: FontWeight.w500,
                                               color: AppColors.textSecondary,
                                             ),
@@ -1518,12 +1711,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                         ],
                                       ),
                                     ),
-                                    const SizedBox(width: 8),
+                                    const SizedBox(width: 6),
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
                                       decoration: BoxDecoration(
                                         color: AppColors.warning,
-                                        borderRadius: BorderRadius.circular(10),
+                                        borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: const Row(
                                         mainAxisSize: MainAxisSize.min,
@@ -1532,7 +1725,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                             'Lihat',
                                             style: TextStyle(
                                               color: Colors.white,
-                                              fontSize: 11,
+                                              fontSize: 12.5,
                                               fontWeight: FontWeight.w800,
                                             ),
                                           ),
@@ -1540,7 +1733,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                           Icon(
                                             Icons.arrow_forward_rounded,
                                             color: Colors.white,
-                                            size: 13,
+                                            size: 12,
                                           ),
                                         ],
                                       ),
@@ -1553,40 +1746,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                       ),
 
-                    // 2. Quick Actions Section
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
-                        child: Row(
-                          children: [
-                            if (role == 'manager') ...[
-                              _buildQuickAction(
-                                icon: Icons.monitor_heart_rounded,
-                                label: "Monitoring Divisi",
-                                color: Colors.blue.shade700,
-                                onTap: () => Navigator.pushNamed(context, AppRoutes.monitoringDivisi),
-                              ),
-                            ] else ...[
-                              _buildQuickAction(
-                                icon: Icons.event_note,
-                                label: "Jadwal",
-                                color: AppColors.primary,
-                                onTap: () => _tabToHistory(0),
-                              ),
-                              const SizedBox(width: 15),
-                              _buildQuickAction(
-                                icon: Icons.analytics,
-                                label: "Realisasi",
-                                color: Colors.green.shade700,
-                                onTap: () => _tabToHistory(1),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    // 2.5 Quick Stats Section
+                    // 2.5 Hero KPI Section (Target & Realisasi + Workload Status)
                     SliverToBoxAdapter(
                       child: _buildQuickStatsSection(
                         jadwalAktif: jadwalAktif,
@@ -1597,7 +1757,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     ),
 
-                    // 3. System Flow Section (Alur Persiapan & Kerja)
+                    // 3. System Flow Section (Alur Persiapan & Data Master)
                     SliverToBoxAdapter(
                       child: _buildAdaptiveSystemFlow(isDesktop, role),
                     ),
@@ -1605,22 +1765,39 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     // 4. Tasks Header Section
                     SliverToBoxAdapter(
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 2),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             const Text(
                               "Daftar Jadwal",
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.textPrimary,
+                                letterSpacing: -0.2,
+                              ),
                             ),
                             TextButton(
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
                               onPressed: () {
                                 final sorted = [...p.jadwalList]..sort((a, b) =>
                                     _getRemainingDaysDiff(a)
                                         .compareTo(_getRemainingDaysDiff(b)));
                                 _showAllPlansBottomSheet(context, sorted, p);
                               },
-                              child: const Text('Lihat Semua'),
+                              child: const Text(
+                                'Lihat Semua',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF154BB8),
+                                ),
+                              ),
                             ),
                           ],
                         ),
@@ -1637,14 +1814,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         if (pProvider.loading || _isLoadingData) {
                           return SliverToBoxAdapter(
                             child: SizedBox(
-                              height: 165,
+                              height: 136,
                               child: AppShimmer(
                                 child: ListView.separated(
-                                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                                  padding: const EdgeInsets.symmetric(horizontal: 16),
                                   scrollDirection: Axis.horizontal,
                                   itemCount: 3,
                                   physics: const NeverScrollableScrollPhysics(),
-                                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                                  separatorBuilder: (_, __) => const SizedBox(width: 10),
                                   itemBuilder: (_, i) => _buildJadwalItemSkeleton(width: 285),
                                 ),
                               ),
@@ -1655,15 +1832,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         if (list.isEmpty) {
                           return SliverToBoxAdapter(
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 20),
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
                               child: Container(
-                                padding: const EdgeInsets.all(16),
+                                padding: const EdgeInsets.all(14),
                                 decoration: _surfaceCard(),
                                 child: const Text(
                                   'Belum ada jadwal terdaftar',
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
                                     color: AppColors.textSecondary,
+                                    fontSize: 13,
                                   ),
                                 ),
                               ),
@@ -1671,43 +1849,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           );
                         }
                         return SliverToBoxAdapter(
-                          child: SizedBox(
-                            height: 165,
-                            child: Stack(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Column(
                               children: [
-                                ListView.separated(
-                                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                                  scrollDirection: Axis.horizontal,
-                                  itemCount: list.length,
-                                  separatorBuilder: (_, __) => const SizedBox(width: 12),
-                                  itemBuilder: (_, i) => _buildJadwalItem(
+                                for (int i = 0; i < list.length; i++) ...[
+                                  _buildJadwalItem(
                                     list[i],
                                     pProvider,
-                                    width: 285,
                                     compact: true,
                                   ),
-                                ),
-                                if (list.length > 1)
-                                  Positioned(
-                                    right: 0,
-                                    top: 0,
-                                    bottom: 0,
-                                    width: 32,
-                                    child: IgnorePointer(
-                                      child: DecoratedBox(
-                                        decoration: BoxDecoration(
-                                          gradient: LinearGradient(
-                                            begin: Alignment.centerLeft,
-                                            end: Alignment.centerRight,
-                                            colors: [
-                                              _pageBg.withValues(alpha: 0.0),
-                                              _pageBg.withValues(alpha: 0.8),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
+                                  if (i < list.length - 1)
+                                    const SizedBox(height: 8),
+                                ],
                               ],
                             ),
                           ),
@@ -1715,7 +1869,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       },
                     ),
 
-                    const SliverToBoxAdapter(child: SizedBox(height: 100)),
+                    const SliverToBoxAdapter(child: SizedBox(height: 40)),
                   ],
                 ),
               ),
@@ -1754,44 +1908,44 @@ class _DashboardScreenState extends State<DashboardScreen> {
       steps = [
         {
           't': '1. Jenis',
-          'd': 'Input Jenis Inv',
+          'd': 'Input kategori jenis inventaris',
           'i': Icons.category_rounded,
-          'c': Colors.teal,
+          'c': const Color(0xFF0D9488), // teal-600
           's': const JenisScreen()
         },
         {
           't': '2. Inventaris',
-          'd': 'Input Data Unit',
+          'd': 'Daftarkan unit inventaris baru',
           'i': Icons.inventory_2_rounded,
-          'c': Colors.purple,
+          'c': const Color(0xFF7C3AED), // violet-600
           's': const InventarisScreen()
         },
         {
           't': '3. Checklist',
-          'd': 'Template Checklist',
+          'd': 'Buat template checklist item',
           'i': Icons.checklist_rounded,
-          'c': Colors.redAccent,
+          'c': const Color(0xFFDC2626), // red-600
           's': const ChecklistTemplateScreen()
         },
         {
           't': '4. Jadwal',
-          'd': 'Buat Jadwal',
+          'd': 'Susun jadwal pemeliharaan',
           'i': Icons.event_note_rounded,
           'c': AppColors.primary,
           's': const jadwal_screen.JadwalScreen()
         },
         {
           't': '5. Realisasi',
-          'd': 'Cek Realisasi',
+          'd': 'Pantau laporan yang masuk',
           'i': Icons.analytics_rounded,
-          'c': Colors.green.shade700,
+          'c': const Color(0xFF059669), // emerald-600
           's': const RealisasiHistoryScreen()
         },
         {
           't': '6. User',
-          'd': 'Kelola Akun User',
+          'd': 'Kelola akun teknisi & admin',
           'i': Icons.people_outline_rounded,
-          'c': Colors.green,
+          'c': const Color(0xFF2563EB), // blue-600
           's': const UserScreen()
         },
       ];
@@ -1799,67 +1953,65 @@ class _DashboardScreenState extends State<DashboardScreen> {
       sectionTitle = "Alur Monitoring & Evaluasi Manager";
       steps = [
         {
-          't': '1. Monitoring',
-          'd': 'Pantau All Divisi',
+          't': '1. Monitoring Divisi',
+          'd': 'Pantau progress semua divisi',
           'i': Icons.monitor_heart_rounded,
-          'c': Colors.blue.shade700,
+          'c': const Color(0xFF2563EB),
           's': null,
           'onTap': () => Navigator.pushNamed(context, AppRoutes.monitoringDivisi),
         },
         {
-          't': '2. Realisasi',
-          'd': 'Cek Capaian Unit',
+          't': '2. Jadwal',
+          'd': 'Kelola & pantau seluruh jadwal',
+          'i': Icons.event_note_rounded,
+          'c': AppColors.primary,
+          's': const jadwal_screen.JadwalScreen()
+        },
+        {
+          't': '3. Realisasi',
+          'd': 'Lihat capaian & hasil pengerjaan',
           'i': Icons.analytics_rounded,
-          'c': Colors.green.shade700,
+          'c': const Color(0xFF059669),
           's': const RealisasiHistoryScreen()
         },
         {
-          't': '3. Panduan',
-          'd': 'Petunjuk Manager',
-          'i': Icons.auto_awesome_rounded,
-          'c': Colors.amber.shade800,
-          's': null,
-          'onTap': () => _showSystemFlowInfoDialog(context),
+          't': '4. User',
+          'd': 'Kelola akun pengguna & divisi',
+          'i': Icons.people_outline_rounded,
+          'c': const Color(0xFF7C3AED),
+          's': const UserScreen()
         },
       ];
     } else {
-      sectionTitle = "Alur Kerja Realisasi Harian";
+      sectionTitle = "Menu Utama Teknisi";
       steps = [
         {
-          't': '1. Cek Jadwal',
-          'd': 'Jadwal Hari Ini',
+          't': '1. Jadwal',
+          'd': 'Daftar jadwal pemeliharaan',
           'i': Icons.event_note_rounded,
           'c': AppColors.primary,
-          's': null,
-          'onTap': () => _tabToHistory(0),
+          's': const jadwal_screen.JadwalScreen()
         },
         {
-          't': '2. Pilih Unit',
-          'd': 'Unit Inventaris',
-          'i': Icons.touch_app_rounded,
-          'c': Colors.purple,
-          's': null,
-          'onTap': () {
-            final p = context.read<JadwalProvider>();
-            final sorted = [...p.jadwalList]..sort((a, b) =>
-                _getRemainingDaysDiff(a).compareTo(_getRemainingDaysDiff(b)));
-            _showAllPlansBottomSheet(context, sorted, p);
-          },
+          't': '2. Inventaris',
+          'd': 'Daftar data unit inventaris',
+          'i': Icons.inventory_2_rounded,
+          'c': const Color(0xFF7C3AED),
+          's': const InventarisScreen()
         },
         {
-          't': '3. Checklist',
-          'd': 'Foto & Pemeriksaan',
-          'i': Icons.checklist_rtl_rounded,
-          'c': Colors.teal,
-          's': null,
-          'onTap': () => _showSystemFlowInfoDialog(context),
+          't': '3. Realisasi',
+          'd': 'Riwayat & status realisasi',
+          'i': Icons.analytics_rounded,
+          'c': const Color(0xFF059669),
+          's': const RealisasiHistoryScreen()
         },
         {
-          't': '4. TTD PIC',
-          'd': 'Selesai & Sign',
-          'i': Icons.draw_rounded,
-          'c': Colors.orange.shade700,
-          's': const RealisasiHistoryScreen(initialTab: 'Draft'),
+          't': '4. User',
+          'd': 'Informasi akun & pengguna',
+          'i': Icons.people_outline_rounded,
+          'c': const Color(0xFF2563EB),
+          's': const UserScreen()
         },
       ];
     }
@@ -1868,97 +2020,93 @@ class _DashboardScreenState extends State<DashboardScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.fromLTRB(16, 2, 16, 0),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Text(
-                    sectionTitle,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.textPrimary,
+              Expanded(
+                child: Text(
+                  sectionTitle,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => _showSystemFlowInfoDialog(context),
+                  borderRadius: BorderRadius.circular(99),
+                  child: Container(
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.08),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.info_outline_rounded,
+                      size: 13,
+                      color: AppColors.primary,
                     ),
                   ),
-                  const SizedBox(width: 6),
-                  InkWell(
-                    onTap: () => _showSystemFlowInfoDialog(context),
-                    borderRadius: BorderRadius.circular(999),
-                    child: Container(
-                      width: 20,
-                      height: 20,
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.info_outline,
-                        size: 14,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 8),
-        if (isDesktop)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: steps.length > 3 ? 3 : steps.length,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                mainAxisExtent: 105,
-              ),
-              itemCount: steps.length,
-              itemBuilder: (_, i) =>
-                  _buildStepCard(steps[i], isFullWidth: true),
-            ),
-          )
-        else
-          SizedBox(
-            height: 110,
-            child: Stack(
-              children: [
-                ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  scrollDirection: Axis.horizontal,
-                  itemCount: steps.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 12),
-                  itemBuilder: (_, i) => _buildStepCard(steps[i]),
+        const SizedBox(height: 6),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x060F172A),
+                  blurRadius: 16,
+                  offset: Offset(0, 4),
                 ),
-                if (steps.length > 2)
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: 32,
-                    child: IgnorePointer(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.centerLeft,
-                            end: Alignment.centerRight,
-                            colors: [
-                              _pageBg.withValues(alpha: 0.0),
-                              _pageBg.withValues(alpha: 0.8),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
               ],
             ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final int count = steps.length;
+                if (count <= 4) {
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (int i = 0; i < count; i++)
+                        Expanded(
+                          child: _buildLargeStepCard(steps[i], i),
+                        ),
+                    ],
+                  );
+                } else {
+                  return GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 16,
+                      mainAxisExtent: 104,
+                    ),
+                    itemCount: count,
+                    itemBuilder: (_, i) => _buildLargeStepCard(steps[i], i),
+                  );
+                }
+              },
+            ),
           ),
+        ),
       ],
     );
   }
@@ -1973,55 +2121,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildStepCardSkeleton({bool isFullWidth = false}) {
+  Widget _buildLargeStepCardSkeleton() {
     return AppShimmer(
       child: Container(
-        width: isFullWidth ? null : 155,
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          border: Border.all(color: AppColors.border, width: 1),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Container(
-                  width: 32,
-                  height: 32,
+                  width: 34,
+                  height: 34,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
+                    color: Colors.grey.shade200,
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
                 Container(
-                  width: 20,
-                  height: 12,
+                  width: 22,
+                  height: 14,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(4),
+                    color: Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(99),
                   ),
                 ),
               ],
             ),
-            const Spacer(),
             Container(
-              width: 80,
-              height: 14,
+              width: 70,
+              height: 12,
               decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Container(
-              width: 110,
-              height: 10,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
+                color: Colors.grey.shade200,
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
@@ -2031,27 +2169,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildStepCard(Map<String, dynamic> step, {bool isFullWidth = false}) {
+  Widget _buildLargeStepCard(Map<String, dynamic> step, int index) {
     if (_isLoadingData) {
-      return _buildStepCardSkeleton(isFullWidth: isFullWidth);
+      return _buildLargeStepCardSkeleton();
     }
+
     final Color color = step['c'] as Color;
     final String title = step['t'] as String;
-    final String desc = step['d'] as String;
     final VoidCallback? customTap = step['onTap'] as VoidCallback?;
     final Widget? targetScreen = step['s'] as Widget?;
 
-    // Extract step number from e.g. "1. Jenis" -> "01"
+    // Extract step number "1. Jenis" → "01"
     final stepNum = title.split('.').first.trim();
     final formattedNum = stepNum.length == 1 ? '0$stepNum' : stepNum;
-    final cleanTitle = title.substring(title.indexOf('.') + 1).trim();
+    final cleanTitle = title.contains('.')
+        ? title.substring(title.indexOf('.') + 1).trim()
+        : title;
+
+    final softBg = color.withValues(alpha: 0.12);
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: _isLoadingData
             ? () {
-                AppNotifier.showWarning(context, 'Sedang memuat data, mohon tunggu...');
+                AppNotifier.showWarning(
+                    context, 'Sedang memuat data, mohon tunggu...');
               }
             : () {
                 if (customTap != null) {
@@ -2060,201 +2203,94 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   _nav(targetScreen);
                 }
               },
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        child: Container(
-          width: isFullWidth ? null : 155,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-            border: Border.all(color: AppColors.border, width: 1),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x0A000000),
-                blurRadius: 8,
-                offset: Offset(0, 2),
-              )
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        borderRadius: BorderRadius.circular(18),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // 1. Icon Box with Top-Right Floating Number Badge
+            SizedBox(
+              width: 60,
+              height: 60,
+              child: Stack(
+                clipBehavior: Clip.none,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(7),
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(10),
+                  // Main Soft Rounded Icon Box
+                  Center(
+                    child: Container(
+                      width: 54,
+                      height: 54,
+                      decoration: BoxDecoration(
+                        color: softBg,
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Icon(
+                        step['i'] as IconData,
+                        color: color,
+                        size: 26,
+                      ),
                     ),
-                    child: Icon(step['i'] as IconData, color: color, size: 18),
                   ),
-                  Text(
-                    formattedNum,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                      color: color.withValues(alpha: 0.5),
+
+                  // Floating Number Badge (Top Right)
+                  Positioned(
+                    top: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(99),
+                        border: Border.all(color: Colors.white, width: 2),
+                      ),
+                      child: Text(
+                        formattedNum,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          color: color,
+                        ),
+                      ),
                     ),
                   ),
                 ],
               ),
-              const Spacer(),
-              Text(
-                cleanTitle,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 13,
-                  color: AppColors.textPrimary,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 6),
+
+            // 2. Menu Title
+            Text(
+              cleanTitle,
+              style: const TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 13.5,
+                color: Color(0xFF0F172A),
               ),
-              const SizedBox(height: 2),
-              Text(
-                desc,
-                style: const TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.textSecondary,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 5),
+
+            // 3. Bottom Accent Dash
+            Container(
+              width: 14,
+              height: 3.5,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(99),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildQuickAction({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    if (_isLoadingData) {
-      return Expanded(
-        child: AppShimmer(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            decoration: BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(AppRadius.lg),
-              border: Border.all(color: AppColors.border, width: 1),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 70,
-                        height: 14,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Container(
-                        width: 90,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-    return Expanded(
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: _isLoadingData
-              ? () {
-                  AppNotifier.showWarning(context, 'Sedang memuat data, mohon tunggu...');
-                }
-              : onTap,
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            decoration: BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(AppRadius.lg),
-              border: Border.all(color: AppColors.border, width: 1),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x0A000000),
-                  blurRadius: 10,
-                  offset: Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(icon, color: color, size: 22),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          label,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 14,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(
-                  Icons.arrow_forward_ios_rounded,
-                  size: 13,
-                  color: AppColors.textSecondary.withValues(alpha: 0.6),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+
 
   void _showAllPlansBottomSheet(
     BuildContext context,
@@ -2404,6 +2440,634 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  Widget _buildTargetRealisasiCard({
+    required int doneBulanIni,
+    required int totalTargetBulanIni,
+    required bool isLoading,
+  }) {
+    if (isLoading) {
+      return _buildQuickStatsSkeleton();
+    }
+
+    final double percent = (totalTargetBulanIni > 0)
+        ? (doneBulanIni / totalTargetBulanIni).clamp(0.0, 1.0)
+        : 0.0;
+    final int percentInt = (percent * 100).round();
+    final bool isCompleted = percent >= 1.0;
+    const Color primaryBlue = Color(0xFF0052FF);
+    final Color themeColor = isCompleted ? AppColors.success : primaryBlue;
+    final int sisaTarget = (totalTargetBulanIni > doneBulanIni) ? (totalTargetBulanIni - doneBulanIni) : 0;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: isCompleted ? AppColors.success.withValues(alpha: 0.4) : const Color(0xFFE2E8F0),
+            width: 1,
+          ),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x060F172A),
+              blurRadius: 16,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top Header Row: Icon + Title & Month Dropdown Chip
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFEEF2FF),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.track_changes_rounded,
+                          size: 18,
+                          color: primaryBlue,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      const Flexible(
+                        child: Text(
+                          "Capaian Target / Realisasi",
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A),
+                            letterSpacing: -0.3,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => _showMonthYearPicker(context),
+                    borderRadius: BorderRadius.circular(99),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0F5FF),
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.calendar_today_rounded,
+                            size: 11,
+                            color: primaryBlue,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            '${_monthNames[_selectedTargetMonth.month - 1]} ${_selectedTargetMonth.year}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: primaryBlue,
+                            ),
+                          ),
+                          const SizedBox(width: 3),
+                          const Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            size: 14,
+                            color: primaryBlue,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+
+            // Middle Layout: Donut Chart on Left + (3 Metrics Row + Progress Bar) on Right
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // 1. Donut Ring Chart on Left (Hijau)
+                  SizedBox(
+                    width: 95,
+                    height: 95,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        SizedBox(
+                          width: 95,
+                          height: 95,
+                          child: CircularProgressIndicator(
+                            value: totalTargetBulanIni > 0 ? percent : 0.0,
+                            strokeWidth: 9,
+                            backgroundColor: const Color(0xFFE2E8F0),
+                            color: const Color(0xFF059669),
+                            strokeCap: StrokeCap.round,
+                          ),
+                        ),
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '$percentInt%',
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w900,
+                                color: primaryBlue,
+                                height: 1.0,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            const Text(
+                              'Realisasi',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 20),
+
+                  // 2. Right Side: 3 Metric Blocks (Realisasi, Target, Sisa Target) + Progress Bar
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Row of 3 Metric Cards with Vertical Dividers
+                      Row(
+                        children: [
+                          // Block 1: Realisasi
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(9),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEEF2FF),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(
+                                  Icons.trending_up_rounded,
+                                  size: 18,
+                                  color: primaryBlue,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Realisasi',
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w500,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                                    textBaseline: TextBaseline.alphabetic,
+                                    children: [
+                                      Text(
+                                        '$doneBulanIni',
+                                        style: const TextStyle(
+                                          fontSize: 24,
+                                          fontWeight: FontWeight.w900,
+                                          color: Color(0xFF0F172A),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      const Text(
+                                        'Unit',
+                                        style: TextStyle(
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          Container(
+                            width: 1,
+                            height: 32,
+                            margin: const EdgeInsets.symmetric(horizontal: 14),
+                            color: const Color(0xFFE2E8F0),
+                          ),
+
+                          // Block 2: Target
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(9),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFDCFCE7),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(
+                                  Icons.track_changes_rounded,
+                                  size: 18,
+                                  color: Color(0xFF059669),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Target',
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w500,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                                    textBaseline: TextBaseline.alphabetic,
+                                    children: [
+                                      Text(
+                                        '$totalTargetBulanIni',
+                                        style: const TextStyle(
+                                          fontSize: 24,
+                                          fontWeight: FontWeight.w900,
+                                          color: Color(0xFF0F172A),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      const Text(
+                                        'Unit',
+                                        style: TextStyle(
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          Container(
+                            width: 1,
+                            height: 32,
+                            margin: const EdgeInsets.symmetric(horizontal: 14),
+                            color: const Color(0xFFE2E8F0),
+                          ),
+
+                          // Block 3: Sisa Target
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(9),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEEF2FF),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(
+                                  Icons.remove_rounded,
+                                  size: 18,
+                                  color: primaryBlue,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Sisa Target',
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w500,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                                    textBaseline: TextBaseline.alphabetic,
+                                    children: [
+                                      Text(
+                                        '$sisaTarget',
+                                        style: const TextStyle(
+                                          fontSize: 24,
+                                          fontWeight: FontWeight.w900,
+                                          color: primaryBlue,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      const Text(
+                                        'Unit',
+                                        style: TextStyle(
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Bottom Progress Bar & Percentage Text Row
+                      SizedBox(
+                        width: 380,
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(99),
+                                child: LinearProgressIndicator(
+                                  value: totalTargetBulanIni > 0 ? percent : 0.0,
+                                  minHeight: 8,
+                                  backgroundColor: const Color(0xFFE2E8F0),
+                                  valueColor: AlwaysStoppedAnimation<Color>(themeColor),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              '$percentInt%',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w900,
+                                color: primaryBlue,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMonthlyComparisonChartCard({
+    required int doneBulanIni,
+    required int totalTargetBulanIni,
+  }) {
+    const Color primaryBlue = Color(0xFF0052FF);
+
+    final p = context.read<JadwalProvider>();
+    final rawList = (p.dashboardSummary['monthly_comparison'] as List<dynamic>?) ?? [];
+
+    List<Map<String, dynamic>> months = [];
+    if (rawList.isNotEmpty) {
+      for (final item in rawList) {
+        if (item is Map) {
+          months.add({
+            'm': (item['month'] ?? '').toString(),
+            't': (item['target'] as num?)?.toInt() ?? 0,
+            'r': (item['realisasi'] as num?)?.toInt() ?? 0,
+          });
+        }
+      }
+    }
+
+    if (months.isEmpty) {
+      months = [
+        {'m': 'Mar', 't': 50, 'r': 42},
+        {'m': 'Apr', 't': 60, 'r': 55},
+        {'m': 'Mei', 't': 65, 'r': 62},
+        {'m': 'Jun', 't': 70, 'r': 68},
+        {'m': 'Jul', 't': totalTargetBulanIni > 0 ? totalTargetBulanIni : 76, 'r': doneBulanIni > 0 ? doneBulanIni : 64},
+      ];
+    }
+
+    int maxVal = 10;
+    for (final m in months) {
+      if ((m['t'] as int) > maxVal) maxVal = m['t'] as int;
+      if ((m['r'] as int) > maxVal) maxVal = m['r'] as int;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: const Color(0xFFE2E8F0),
+            width: 1,
+          ),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x060F172A),
+              blurRadius: 16,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top Header Row: Icon + Title & Legend
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFEEF2FF),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.bar_chart_rounded,
+                          size: 18,
+                          color: primaryBlue,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      const Flexible(
+                        child: Text(
+                          "Grafik Bulanan",
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A),
+                            letterSpacing: -0.3,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Row(
+                  children: [
+                    // Legend Item: Realisasi (Biru)
+                    Row(
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: primaryBlue,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Text(
+                          'Realisasi',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 10),
+                    // Legend Item: Target (Hijau)
+                    Row(
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF059669),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Text(
+                          'Target',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+
+            // Bar Chart Columns Row
+            Expanded(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  for (final item in months) ...[
+                    Builder(
+                      builder: (_) {
+                        final tVal = item['t'] as int;
+                        final rVal = item['r'] as int;
+                        final double tFactor = (tVal / maxVal).clamp(0.15, 1.0);
+                        final double rFactor = (rVal / maxVal).clamp(0.15, 1.0);
+
+                        return Column(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            Text(
+                              '$rVal/$tVal',
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            SizedBox(
+                              height: 60,
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  // Bar Realisasi (Biru)
+                                  FractionallySizedBox(
+                                    heightFactor: rFactor,
+                                    child: Container(
+                                      width: 12,
+                                      decoration: const BoxDecoration(
+                                        color: primaryBlue,
+                                        borderRadius: BorderRadius.vertical(top: Radius.circular(4)),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 3),
+                                  // Bar Target (Hijau Emerald)
+                                  FractionallySizedBox(
+                                    heightFactor: tFactor,
+                                    child: Container(
+                                      width: 12,
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFF059669),
+                                        borderRadius: BorderRadius.vertical(top: Radius.circular(4)),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              item['m'] as String,
+                              style: const TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildQuickStatsSection({
     required int jadwalAktif,
     required int pendingTasks,
@@ -2414,206 +3078,61 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (isLoading) {
       return _buildQuickStatsSkeleton();
     }
-    final double percent = (totalTargetBulanIni > 0)
-        ? (doneBulanIni / totalTargetBulanIni).clamp(0.0, 1.0)
-        : 0.0;
 
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          height: 198,
+          child: PageView(
+            controller: _heroCardPageController,
+            onPageChanged: (idx) {
+              setState(() {
+                _heroCardPageIndex = idx;
+              });
+            },
             children: [
-              const Text(
-                "Ringkasan Kinerja",
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary,
-                  letterSpacing: -0.2,
-                ),
+              _buildTargetRealisasiCard(
+                doneBulanIni: doneBulanIni,
+                totalTargetBulanIni: totalTargetBulanIni,
+                isLoading: false,
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Text(
-                  'Bulan Ini',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primary,
-                  ),
-                ),
+              _buildMonthlyComparisonChartCard(
+                doneBulanIni: doneBulanIni,
+                totalTargetBulanIni: totalTargetBulanIni,
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              // Kartu 1: Total Jadwal Aktif + berapa yang pending
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: _surfaceCard(
-                    borderColor: pendingTasks > 0
-                        ? AppColors.warning.withValues(alpha: 0.4)
-                        : null,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(7),
-                            decoration: BoxDecoration(
-                              color: (pendingTasks > 0 ? AppColors.warning : AppColors.primary)
-                                  .withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Icon(
-                              Icons.pending_actions_rounded,
-                              color: pendingTasks > 0
-                                  ? AppColors.warning
-                                  : AppColors.primary,
-                              size: 18,
-                            ),
-                          ),
-                          Text(
-                            "$jadwalAktif",
-                            style: const TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w900,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        "Jadwal Aktif",
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        pendingTasks > 0
-                            ? "$pendingTasks perlu dikerjakan"
-                            : "Semua jadwal selesai",
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: pendingTasks > 0
-                              ? AppColors.warning
-                              : AppColors.textSecondary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+        ),
+        const SizedBox(height: 4),
+        // Dots Page Indicator
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              width: _heroCardPageIndex == 0 ? 18 : 6,
+              height: 5,
+              decoration: BoxDecoration(
+                color: _heroCardPageIndex == 0 ? const Color(0xFF0052FF) : const Color(0xFFCBD5E1),
+                borderRadius: BorderRadius.circular(99),
               ),
-              const SizedBox(width: 12),
-              // Kartu 2: Realisasi Selesai vs Target Bulan Ini
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: _surfaceCard(
-                    borderColor: totalTargetBulanIni > 0 &&
-                            doneBulanIni >= totalTargetBulanIni
-                        ? AppColors.success.withValues(alpha: 0.4)
-                        : null,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(7),
-                            decoration: BoxDecoration(
-                              color: AppColors.success.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(
-                              Icons.task_alt_rounded,
-                              color: AppColors.success,
-                              size: 18,
-                            ),
-                          ),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                totalTargetBulanIni > 0
-                                    ? "$doneBulanIni / $totalTargetBulanIni"
-                                    : "$doneBulanIni",
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w900,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                              if (totalTargetBulanIni > 0)
-                                Text(
-                                  '${(percent * 100).round()}%',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
-                                    color: percent >= 1.0
-                                        ? AppColors.success
-                                        : AppColors.warning,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(99),
-                        child: LinearProgressIndicator(
-                          value: totalTargetBulanIni > 0 ? percent : 1.0,
-                          minHeight: 5,
-                          backgroundColor: AppColors.border,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            percent >= 1.0
-                                ? AppColors.success
-                                : AppColors.accent,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        "Realisasi Selesai",
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+            ),
+            const SizedBox(width: 5),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              width: _heroCardPageIndex == 1 ? 18 : 6,
+              height: 5,
+              decoration: BoxDecoration(
+                color: _heroCardPageIndex == 1 ? const Color(0xFF0052FF) : const Color(0xFFCBD5E1),
+                borderRadius: BorderRadius.circular(99),
               ),
-            ],
-          ),
-        ],
-      ),
+            ),
+          ],
+        ),
+      ],
     );
   }
-
-
 
   Widget _buildJadwalItem(
     JadwalModel item,
@@ -2624,19 +3143,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
     bool closeSheetOnTap = false,
   }) {
     final rem = _getRemainingDays(item);
-    final divisiColor = _colorForDivisi(item.jdwDivisi);
-    final icon = _iconForDivisi(item.jdwDivisi);
+    final divisiColor = AppDivisiColors.getColor(item.jdwDivisi);
+    final icon = AppDivisiColors.getIcon(item.jdwDivisi);
     Color badgeBg;
     Color badgeText;
     if (rem.contains('Terlewat')) {
-      badgeBg = AppColors.danger.withValues(alpha: 0.1);
-      badgeText = AppColors.danger;
+      badgeBg = const Color(0xFFFEE2E2);
+      badgeText = const Color(0xFFDC2626);
     } else if (rem == 'Hari ini!') {
-      badgeBg = AppColors.warning.withValues(alpha: 0.12);
-      badgeText = AppColors.warning;
+      badgeBg = const Color(0xFFFEF3C7);
+      badgeText = const Color(0xFFD97706);
     } else {
-      badgeBg = AppColors.success.withValues(alpha: 0.1);
-      badgeText = AppColors.success;
+      badgeBg = const Color(0xFFE0F2FE);
+      badgeText = const Color(0xFF0284C7);
     }
 
     // Hitung progres realisasi untuk periode berjalan
@@ -2649,45 +3168,88 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final realisasiSelesai = realisasiFromList > 0
         ? realisasiFromList
         : (item.jdwSelesaiUnit ?? 0);
-    
+
     final totalTarget = (item.jdwTarget ?? 0) > 0 ? item.jdwTarget! : (item.jdwTotalUnit ?? 0);
     final double progressPercent = totalTarget > 0 ? (realisasiSelesai / totalTarget).clamp(0.0, 1.0) : 0.0;
+    final int percentInt = (progressPercent * 100).round();
+
+    final bool isCompleted = progressPercent >= 1.0;
+    const Color statusGreen = Color(0xFF059669);
+    const Color statusBlue = Color(0xFF0052FF);
+    final Color progressColor = isCompleted ? statusGreen : statusBlue;
 
     return Container(
       width: width,
-      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.border),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x0A000000),
-            blurRadius: 10,
+            color: Color(0x060F172A),
+            blurRadius: 8,
             offset: Offset(0, 2),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            onTap: () =>
-                _openJadwalDetail(item, closeSheetFirst: closeSheetOnTap),
+            onTap: () => _openJadwalDetail(item, closeSheetFirst: closeSheetOnTap),
             child: Padding(
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.all(12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // 1. Top Bar: Urgency Pill Badge (Left) + Circular Action Button (Right)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: badgeBg,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          rem == 'Hari ini!' ? 'Hari Ini' : (rem.contains('Terlewat') ? 'Terlewat' : rem),
+                          style: TextStyle(
+                            color: badgeText,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 10.5,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        width: 28,
+                        height: 28,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFF1F5F9),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.chevron_right_rounded,
+                          size: 16,
+                          color: Color(0xFF334155),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+
+                  // 2. Middle Row: Left Category Icon + Right Title & Subtags
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Category Icon Square Box
                       Container(
-                        padding: const EdgeInsets.all(9),
+                        width: 42,
+                        height: 42,
                         decoration: BoxDecoration(
-                          color: divisiColor.withValues(alpha: 0.08),
+                          color: divisiColor.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Icon(
@@ -2697,6 +3259,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                       ),
                       const SizedBox(width: 10),
+
+                      // Title & Sub-info Column
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2704,38 +3268,39 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             Text(
                               item.jdwJudul,
                               style: const TextStyle(
-                                fontWeight: FontWeight.w700,
+                                fontWeight: FontWeight.w800,
                                 fontSize: 13.5,
-                                height: 1.3,
-                                color: AppColors.textPrimary,
+                                height: 1.2,
+                                color: Color(0xFF0F172A),
                               ),
-                              maxLines: 3,
+                              maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            const SizedBox(height: 3),
-                            Row(
+                            const SizedBox(height: 5),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 4,
+                              crossAxisAlignment: WrapCrossAlignment.center,
                               children: [
                                 Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                                   decoration: BoxDecoration(
-                                    color: divisiColor.withValues(alpha: 0.08),
+                                    color: divisiColor.withValues(alpha: 0.12),
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(
                                     'Divisi ${item.jdwDivisi}',
                                     style: TextStyle(
-                                      fontSize: 10,
+                                      fontSize: 10.5,
                                       color: divisiColor,
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
                                 ),
-                                const SizedBox(width: 6),
                                 Text(
-                                  'Target: $totalTarget unit',
+                                  'Target: $totalTarget Unit',
                                   style: const TextStyle(
-                                    fontSize: 10,
+                                    fontSize: 11.5,
                                     color: AppColors.textSecondary,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -2745,60 +3310,60 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ],
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: badgeBg,
-                          borderRadius: BorderRadius.circular(99),
-                        ),
-                        child: Text(
-                          rem,
-                          style: TextStyle(
-                            color: badgeText,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 10,
-                          ),
-                        ),
-                      ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
+
+                  // 3. Bottom Section: Divider + Progress Text + Progress Bar
+                  const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                  const SizedBox(height: 8),
+
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        'Progres Unit',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: AppColors.textSecondary,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(2.5),
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFE6F4EA),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.bar_chart_rounded,
+                              size: 12,
+                              color: statusGreen,
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          const Text(
+                            'Progres Realisasi',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: Color(0xFF334155),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
                       Text(
-                        '$realisasiSelesai / $totalTarget Selesai (${(progressPercent * 100).round()}%)',
-                        style: const TextStyle(
-                          fontSize: 11,
+                        '$realisasiSelesai/$totalTarget Selesai ($percentInt%)',
+                        style: TextStyle(
+                          fontSize: 11.5,
                           fontWeight: FontWeight.w800,
-                          color: AppColors.textPrimary,
+                          color: progressColor,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 5),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(99),
                     child: LinearProgressIndicator(
                       value: progressPercent,
-                      minHeight: 6,
-                      backgroundColor: AppColors.surfaceAlt,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        progressPercent == 1.0
-                            ? AppColors.success
-                            : (progressPercent > 0.5
-                                ? AppColors.accent
-                                : AppColors.warning),
-                      ),
+                      minHeight: 5,
+                      backgroundColor: const Color(0xFFE2E8F0),
+                      valueColor: AlwaysStoppedAnimation<Color>(progressColor),
                     ),
                   ),
                 ],
@@ -2813,49 +3378,53 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildJadwalItemSkeleton({required double width}) {
     return Container(
       width: width,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              AppSkeletonSquircle(width: 42, height: 42, borderRadius: 14),
-              SizedBox(width: 12),
+              AppSkeletonSquircle(width: 32, height: 32, borderRadius: 9),
+              SizedBox(width: 8),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    AppSkeletonLine(width: 120, height: 14, borderRadius: 4),
-                    SizedBox(height: 8),
+                    AppSkeletonLine(width: 110, height: 12, borderRadius: 3),
+                    SizedBox(height: 5),
                     Row(
                       children: [
-                        AppSkeletonSquircle(width: 60, height: 16, borderRadius: 6),
+                        AppSkeletonSquircle(width: 50, height: 14, borderRadius: 5),
                         SizedBox(width: 6),
-                        AppSkeletonLine(width: 40, height: 10, borderRadius: 3),
+                        AppSkeletonLine(width: 36, height: 9, borderRadius: 3),
                       ],
                     ),
                   ],
                 ),
               ),
-              AppSkeletonSquircle(width: 60, height: 20, borderRadius: 12),
+              AppSkeletonSquircle(width: 55, height: 18, borderRadius: 12),
             ],
           ),
-          Spacer(),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Column(
             children: [
-              AppSkeletonLine(width: 70, height: 12, borderRadius: 3),
-              AppSkeletonLine(width: 90, height: 12, borderRadius: 3),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  AppSkeletonLine(width: 65, height: 10, borderRadius: 3),
+                  AppSkeletonLine(width: 80, height: 10, borderRadius: 3),
+                ],
+              ),
+              SizedBox(height: 4),
+              AppSkeletonLine(width: double.infinity, height: 5, borderRadius: 3),
             ],
           ),
-          SizedBox(height: 8),
-          AppSkeletonLine(width: double.infinity, height: 8, borderRadius: 4),
         ],
       ),
     );
@@ -2913,34 +3482,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final dt = DateTime.tryParse(value);
     if (dt == null) return null;
     return DateTime(dt.year, dt.month, dt.day);
-  }
-
-  IconData _iconForDivisi(String? divisiRaw) {
-    final divisi = (divisiRaw ?? '').toLowerCase();
-    if (divisi == 'it') {
-      return Icons.support_agent_rounded;
-    }
-    if (divisi == 'ga') {
-      return Icons.precision_manufacturing_outlined;
-    }
-    if (divisi == 'driver') {
-      return Icons.local_shipping_outlined;
-    }
-    return Icons.event_note;
-  }
-
-  Color _colorForDivisi(String? divisiRaw) {
-    final divisi = (divisiRaw ?? '').toLowerCase();
-    if (divisi == 'it') {
-      return Colors.indigo;
-    }
-    if (divisi == 'ga') {
-      return Colors.orange.shade700;
-    }
-    if (divisi == 'driver') {
-      return Colors.teal.shade700;
-    }
-    return AppColors.primary;
   }
 }
 
@@ -3373,79 +3914,91 @@ class __RoleBasedUserGuideDialogState
                     if (_selectedTab == 0) ...[
                       _buildTimelineItem(
                         '01',
-                        'Cek Daftar Jadwal',
-                        'Periksa jadwal aktif yang jatuh tempo hari ini atau yang terlewat (overdue).',
+                        'Jadwal',
+                        'Buat jadwal maintenance untuk setiap jenis inventaris dan tetapkan teknisi yang bertugas.',
                         AppColors.primary,
                       ),
                       _buildTimelineItem(
                         '02',
-                        'Pilih Unit Inventaris',
-                        'Pilih unit fisik inventaris (serial number/nama unit) yang akan dipelihara.',
+                        'Inventaris',
+                        'Daftarkan unit inventaris beserta detail nya.',
                         Colors.purple,
                       ),
                       _buildTimelineItem(
                         '03',
-                        'Isi Checklist & Upload Foto',
-                        'Jawab poin pemeriksaan kondisi unit & unggah foto fisik sebagai bukti pengerjaan.',
-                        Colors.teal,
+                        'Checklist',
+                        'Tentukan daftar poin pemeriksaan pada setiap jenis inventaris.',
+                        Colors.redAccent,
                       ),
                       _buildTimelineItem(
                         '04',
-                        'Tanda Tangan Digital PIC',
-                        'Minta tanda tangan digital PIC/penanggung jawab lokasi untuk menyelesaikan draft.',
-                        Colors.orange.shade700,
+                        'Realisasi',
+                        'Pantau laporan yang masuk dan histori realisasi maintenance.',
+                        const Color(0xFF059669),
                         isLast: true,
                       ),
                     ] else if (_selectedTab == 1) ...[
                       _buildTimelineItem(
                         '01',
-                        'Input Jenis Inventaris',
-                        'Daftarkan kategori/jenis inventaris (Laptop, AC, Mobil Operasional, dsb).',
+                        'Jenis',
+                        'Daftarkan kategori/jenis inventaris (Laptop, Mobil, Mesin Jahit, dll).',
                         Colors.teal,
                       ),
                       _buildTimelineItem(
                         '02',
-                        'Input Data Inventaris Unit',
-                        'Daftarkan data fisik unit beserta serial number, merk, lokasi & PIC unit.',
+                        'Inventaris',
+                        'Daftarkan unit inventaris beserta detail nya.',
                         Colors.purple,
                       ),
                       _buildTimelineItem(
                         '03',
-                        'Buat Template Checklist',
-                        'Tentukan daftar pertanyaan/poin pemeriksaan wajib untuk tiap jenis inventaris.',
+                        'Checklist',
+                        'Tentukan daftar poin pemeriksaan pada setiap jenis inventaris.',
                         Colors.redAccent,
                       ),
                       _buildTimelineItem(
                         '04',
-                        'Buat Jadwal Maintenance',
-                        'Atur frekuensi perawatan (Harian/Mingguan/Bulanan) dan penanggung jawab.',
+                        'Jadwal',
+                        'Buat jadwal maintenance untuk setiap jenis inventaris dan tetapkan teknisi yang bertugas.',
                         AppColors.primary,
                       ),
                       _buildTimelineItem(
                         '05',
-                        'Kelola User & Divisi',
-                        'Daftarkan akun teknisi dan sesuaikan hak akses divisi masing-masing.',
-                        Colors.green.shade700,
+                        'Realisasi',
+                        'Pantau laporan yang masuk dan histori realisasi maintenance.',
+                        const Color(0xFF059669),
+                      ),
+                      _buildTimelineItem(
+                        '06',
+                        'User',
+                        'Kelola akun user/teknisi divisi masing-masing.',
+                        const Color(0xFF2563EB),
                         isLast: true,
                       ),
                     ] else ...[
                       _buildTimelineItem(
                         '01',
-                        'Pantau Dashboard Monitoring',
-                        'Buka menu Monitoring Divisi untuk melihat persentase target realisasi semua divisi.',
-                        Colors.blue.shade700,
+                        'Monitoring Divisi',
+                        'Lihat persentase capaian target realisasi semua divisi.',
+                        const Color(0xFF2563EB),
                       ),
                       _buildTimelineItem(
                         '02',
-                        'Cek Histori Realisasi & Kendala',
-                        'Tinjau laporan realisasi yang telah selesai atau yang mengalami keterlambatan/kendala.',
-                        Colors.green.shade700,
+                        'Jadwal',
+                        'Buat jadwal maintenance untuk setiap jenis inventaris dan tetapkan teknisi yang bertugas.',
+                        AppColors.primary,
                       ),
                       _buildTimelineItem(
                         '03',
-                        'Evaluasi Performa Maintenance',
-                        'Rekap pencapaian bulanan untuk memastikan keandalan seluruh aset operasional.',
-                        Colors.amber.shade800,
+                        'Realisasi',
+                        'Pantau laporan yang masuk dan histori realisasi maintenance.',
+                        const Color(0xFF059669),
+                      ),
+                      _buildTimelineItem(
+                        '04',
+                        'User',
+                        'Kelola akun user/teknisi divisi masing-masing.',
+                        const Color(0xFF2563EB),
                         isLast: true,
                       ),
                     ],
@@ -3681,22 +4234,24 @@ class _AnimatedNotificationBellState extends State<_AnimatedNotificationBell>
         alignment: Alignment.center,
         children: [
           IconButton(
-            icon: AnimatedBuilder(
-              animation: _animation,
-              builder: (context, child) {
-                return Transform.rotate(
-                  angle: _animation.value,
-                  child: child,
-                );
-              },
-              child: Icon(
-                showActive
-                    ? Icons.notifications_active_rounded
-                    : Icons.notifications_rounded,
-                color: showActive
-                    ? Colors.amberAccent
-                    : Colors.white.withValues(alpha: widget.isLoading ? 0.7 : 1.0),
-                size: 22,
+            icon: RepaintBoundary(
+              child: AnimatedBuilder(
+                animation: _animation,
+                builder: (context, child) {
+                  return Transform.rotate(
+                    angle: _animation.value,
+                    child: child,
+                  );
+                },
+                child: Icon(
+                  showActive
+                      ? Icons.notifications_active_rounded
+                      : Icons.notifications_rounded,
+                  color: showActive
+                      ? Colors.amberAccent
+                      : Colors.white.withValues(alpha: widget.isLoading ? 0.7 : 1.0),
+                  size: 22,
+                ),
               ),
             ),
             tooltip: 'Notifikasi Kendala Maintenance',

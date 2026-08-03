@@ -394,9 +394,13 @@ class JadwalProvider extends ChangeNotifier {
     }
   }
 
-  Future<List<RealisasiModel>> fetchDraftRealisasi() async {
+  Future<List<RealisasiModel>> fetchDraftRealisasi({bool? byDivisi}) async {
     try {
-      final res = await ApiClient.get(ApiConfig.realisasi, query: {'status': 'Draft'});
+      final query = <String, dynamic>{
+        'status': 'Draft',
+        if (byDivisi != null) 'by_divisi': byDivisi,
+      };
+      final res = await ApiClient.get(ApiConfig.realisasi, query: query);
       return ((res['data']['items'] ?? res['data']) as List)
           .map((e) => RealisasiModel.fromJson(e))
           .toList();

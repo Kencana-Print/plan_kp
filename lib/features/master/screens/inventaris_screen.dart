@@ -12,6 +12,7 @@ import '../models/inventaris_model.dart';
 import '../models/jenis_model.dart';
 import '../providers/master_provider.dart';
 import '../widgets/jenis_lookup_sheet.dart';
+import '../../auth/providers/auth_provider.dart';
 
 class InventarisScreen extends StatefulWidget {
   const InventarisScreen({super.key});
@@ -25,11 +26,216 @@ class _InventarisScreenState extends State<InventarisScreen> {
   final Set<int> _expandedJenisIds = <int>{};
   Timer? _searchDebounce;
 
+  String? _getUserTargetKategori() {
+    final auth = context.read<AuthProvider>();
+    final user = auth.user;
+    final role = (user?['user_jabatan'] ?? '').toString().toLowerCase();
+    final isFullAccess = role == 'admin' || role == 'manager';
+    if (isFullAccess) return null;
+    final div = (user?['user_divisi'] ?? '').toString().trim();
+    return div.isEmpty ? null : div;
+  }
+
+  final Set<String> _selectedPabrikKodes = {};
+
+  void _onPabrikFilterChanged() {
+    if (!mounted) return;
+    final kat = _getUserTargetKategori();
+    final q = _search.text.trim();
+    final pabrikParam = _selectedPabrikKodes.isNotEmpty
+        ? _selectedPabrikKodes.join(',')
+        : null;
+    context.read<MasterProvider>().fetchInventaris(
+          kategori: kat,
+          q: q.isEmpty ? null : q,
+          pabrik: pabrikParam,
+        );
+  }
+
+  void _showPabrikMultiSelectModal(
+      BuildContext context, List<dynamic> pabrikList) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final isAllSelected = pabrikList.isNotEmpty &&
+                pabrikList.every(
+                    (p) => _selectedPabrikKodes.contains(p.pabKode));
+
+            return Container(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                16,
+                20,
+                MediaQuery.of(context).viewInsets.bottom + 20,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Filter Lokasi / Pabrik',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close, size: 20),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      TextButton.icon(
+                        onPressed: () {
+                          setModalState(() {
+                            if (isAllSelected) {
+                              _selectedPabrikKodes.clear();
+                            } else {
+                              _selectedPabrikKodes.addAll(
+                                pabrikList.map((p) => p.pabKode as String),
+                              );
+                            }
+                          });
+                        },
+                        icon: Icon(
+                          isAllSelected
+                              ? Icons.deselect_rounded
+                              : Icons.select_all_rounded,
+                          size: 16,
+                          color: AppColors.primary,
+                        ),
+                        label: Text(
+                          isAllSelected ? 'Batal Semua' : 'Pilih Semua',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
+                      if (_selectedPabrikKodes.isNotEmpty)
+                        TextButton(
+                          onPressed: () {
+                            setModalState(() {
+                              _selectedPabrikKodes.clear();
+                            });
+                          },
+                          child: const Text(
+                            'Reset Filter',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.red,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const Divider(height: 1),
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.of(context).size.height * 0.45,
+                    ),
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: pabrikList.length,
+                      itemBuilder: (context, idx) {
+                        final pab = pabrikList[idx];
+                        final isChecked =
+                            _selectedPabrikKodes.contains(pab.pabKode);
+                        return CheckboxListTile(
+                          value: isChecked,
+                          title: Text(
+                            pab.displayLabel,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: isChecked
+                                  ? FontWeight.w700
+                                  : FontWeight.w400,
+                              color: isChecked
+                                  ? AppColors.primary
+                                  : AppColors.textPrimary,
+                            ),
+                          ),
+                          activeColor: AppColors.primary,
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          onChanged: (val) {
+                            setModalState(() {
+                              if (val == true) {
+                                _selectedPabrikKodes.add(pab.pabKode);
+                              } else {
+                                _selectedPabrikKodes.remove(pab.pabKode);
+                              }
+                            });
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 44,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        setState(() {});
+                        _onPabrikFilterChanged();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: Text(
+                        _selectedPabrikKodes.isEmpty
+                            ? 'Tampilkan Semua Lokasi'
+                            : 'Terapkan (${_selectedPabrikKodes.length} Lokasi Terpilih)',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback(
-        (_) => context.read<MasterProvider>().fetchInventaris());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final kat = _getUserTargetKategori();
+      final p = context.read<MasterProvider>();
+      p.fetchInventaris(kategori: kat);
+      p.fetchPabrik();
+    });
   }
 
   @override
@@ -43,9 +249,7 @@ class _InventarisScreenState extends State<InventarisScreen> {
     _searchDebounce?.cancel();
     _searchDebounce = Timer(const Duration(milliseconds: 280), () {
       if (!mounted) return;
-      context
-          .read<MasterProvider>()
-          .fetchInventaris(q: value.trim().isEmpty ? null : value.trim());
+      _onPabrikFilterChanged();
     });
   }
 
@@ -94,7 +298,24 @@ class _InventarisScreenState extends State<InventarisScreen> {
         child: const Icon(Icons.add),
       ),
       body: Consumer<MasterProvider>(
-        builder: (_, p, __) {
+        builder: (ctx, p, __) {
+          final auth = ctx.watch<AuthProvider>();
+          final user = auth.user;
+          final role = (user?['user_jabatan'] ?? '').toString().toLowerCase();
+          final isFullAccess = role == 'admin' || role == 'manager';
+          final userDivisi = (user?['user_divisi'] ?? '').toString().trim();
+
+          List<InventarisModel> displayList = isFullAccess || userDivisi.isEmpty
+              ? p.inventarisList
+              : p.inventarisList.where((item) {
+                  final kat = (p.kategoriByJenisId(item.invJenisId) ?? item.invKategori).trim();
+                  return kat.toLowerCase() == userDivisi.toLowerCase();
+                }).toList();
+
+          if (_selectedPabrikKodes.isNotEmpty) {
+            displayList = displayList.where((item) => _selectedPabrikKodes.contains(item.invPabrikKode)).toList();
+          }
+
           return LayoutBuilder(
             builder: (context, constraints) {
               final maxContentWidth = constraints.maxWidth > 1024
@@ -111,155 +332,311 @@ class _InventarisScreenState extends State<InventarisScreen> {
                     children: [
                       Padding(
                         padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(AppRadius.md),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.02),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: TextField(
-                            controller: _search,
-                            style: const TextStyle(fontSize: 12.5),
-                            decoration: InputDecoration(
-                              hintText: 'Cari nama inventaris...',
-                              prefixIcon: const Icon(Icons.search,
-                                  size: 18, color: AppColors.textSecondary),
-                              suffixIcon: _search.text.isNotEmpty
-                                  ? IconButton(
-                                      icon: const Icon(Icons.clear,
-                                          size: 18,
-                                          color: AppColors.textSecondary),
-                                      onPressed: () {
-                                        _search.clear();
-                                        _onSearchChanged('');
-                                        setState(() {});
-                                      },
-                                    )
-                                  : null,
-                              filled: true,
-                              fillColor: Colors.white,
-                              contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 8),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(AppRadius.md),
-                                borderSide:
-                                    const BorderSide(color: AppColors.border),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(AppRadius.md),
-                                borderSide:
-                                    const BorderSide(color: AppColors.border),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(AppRadius.md),
-                                borderSide: const BorderSide(
-                                    color: AppColors.primary, width: 1.5),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(AppRadius.md),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.02),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: TextField(
+                                  controller: _search,
+                                  style: const TextStyle(fontSize: 12.5),
+                                  decoration: InputDecoration(
+                                    hintText: 'Cari By Nama, No, Merk, PIC...',
+                                    prefixIcon: const Icon(Icons.search,
+                                        size: 18, color: AppColors.textSecondary),
+                                    suffixIcon: _search.text.isNotEmpty
+                                        ? IconButton(
+                                            icon: const Icon(Icons.clear,
+                                                size: 18,
+                                                color: AppColors.textSecondary),
+                                            onPressed: () {
+                                              _search.clear();
+                                              _onSearchChanged('');
+                                              setState(() {});
+                                            },
+                                          )
+                                        : null,
+                                    filled: true,
+                                    fillColor: Colors.white,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 8),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(AppRadius.md),
+                                      borderSide:
+                                          const BorderSide(color: AppColors.border),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(AppRadius.md),
+                                      borderSide:
+                                          const BorderSide(color: AppColors.border),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(AppRadius.md),
+                                      borderSide: const BorderSide(
+                                          color: AppColors.primary, width: 1.5),
+                                    ),
+                                  ),
+                                  onChanged: (val) {
+                                    _onSearchChanged(val);
+                                    setState(() {});
+                                  },
+                                ),
                               ),
                             ),
-                            onChanged: (val) {
-                              _onSearchChanged(val);
-                              setState(() {});
-                            },
-                          ),
-                        ),
-                      ),
-                      if (!p.loading && p.inventarisList.isNotEmpty)
-                        Container(
-                          color: const Color(0xFFF8FAFC),
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-                          child: Row(children: [
-                            Text(
-                              '${p.inventarisList.map((e) => e.invJenisId).toSet().length} jenis · ${p.inventarisList.length} inventaris',
-                              style: const TextStyle(
-                                  fontSize: 12, color: AppColors.textSecondary),
-                            ),
-                            if (_search.text.isNotEmpty)
-                              const Text(' · hasil pencarian',
-                                  style: TextStyle(
-                                      fontSize: 12,
-                                      color: AppColors.textSecondary)),
-                          ]),
-                        ),
-                      Expanded(
-                        child: () {
-                          if (p.loading) {
-                            return const AppShimmer(
-                              child: SingleChildScrollView(
-                                physics: NeverScrollableScrollPhysics(),
-                                padding: EdgeInsets.only(top: 8),
-                                child: Column(
+                            const SizedBox(width: 8),
+                            InkWell(
+                              borderRadius: BorderRadius.circular(AppRadius.md),
+                              onTap: () => _showPabrikMultiSelectModal(context, p.pabrikList),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 250),
+                                curve: Curves.easeInOut,
+                                height: 42,
+                                padding: const EdgeInsets.symmetric(horizontal: 10),
+                                decoration: BoxDecoration(
+                                  color: _selectedPabrikKodes.isNotEmpty
+                                      ? AppColors.primary.withValues(alpha: 0.1)
+                                      : Colors.white,
+                                  borderRadius: BorderRadius.circular(AppRadius.md),
+                                  border: Border.all(
+                                    color: _selectedPabrikKodes.isNotEmpty
+                                        ? AppColors.primary
+                                        : AppColors.border,
+                                    width: _selectedPabrikKodes.isNotEmpty ? 1.5 : 1.0,
+                                  ),
+                                  boxShadow: _selectedPabrikKodes.isNotEmpty
+                                      ? [
+                                          BoxShadow(
+                                            color: AppColors.primary.withValues(alpha: 0.15),
+                                            blurRadius: 6,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ]
+                                      : [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(alpha: 0.02),
+                                            blurRadius: 8,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    AppSkeletonFolderCard(),
-                                    AppSkeletonFolderCard(),
-                                    AppSkeletonFolderCard(),
+                                    Icon(
+                                      _selectedPabrikKodes.isNotEmpty
+                                          ? Icons.location_on_rounded
+                                          : Icons.location_on_outlined,
+                                      size: 16,
+                                      color: _selectedPabrikKodes.isNotEmpty
+                                          ? AppColors.primary
+                                          : AppColors.textSecondary,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      _selectedPabrikKodes.isEmpty
+                                          ? 'Lokasi'
+                                          : _selectedPabrikKodes.length == 1
+                                              ? p.displayPabrik(_selectedPabrikKodes.first)
+                                              : '${_selectedPabrikKodes.length} Lokasi',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: _selectedPabrikKodes.isNotEmpty
+                                            ? AppColors.primary
+                                            : AppColors.textSecondary,
+                                        fontWeight: _selectedPabrikKodes.isNotEmpty
+                                            ? FontWeight.w700
+                                            : FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 2),
+                                    Icon(
+                                      Icons.arrow_drop_down,
+                                      color: _selectedPabrikKodes.isNotEmpty
+                                          ? AppColors.primary
+                                          : AppColors.textSecondary,
+                                    ),
+                                    if (_selectedPabrikKodes.isNotEmpty) ...[
+                                      const SizedBox(width: 2),
+                                      InkWell(
+                                        onTap: () {
+                                          setState(() {
+                                            _selectedPabrikKodes.clear();
+                                          });
+                                          _onPabrikFilterChanged();
+                                        },
+                                        child: const Icon(
+                                          Icons.cancel,
+                                          size: 16,
+                                          color: AppColors.primary,
+                                        ),
+                                      ),
+                                    ],
                                   ],
                                 ),
                               ),
-                            );
-                          }
-                          if (p.inventarisList.isEmpty) {
-                            return EmptyState(
-                              message: 'Belum ada data inventaris',
-                              actionLabel: 'Tambah',
-                              onAction: () => _openForm(),
-                            );
-                          }
-                          final grouped = <int, List<InventarisModel>>{};
-                          for (final item in p.inventarisList) {
-                            grouped
-                                .putIfAbsent(
-                                    item.invJenisId, () => <InventarisModel>[])
-                                .add(item);
-                          }
-                          final jenisIds = grouped.keys.toList()..sort();
+                            ),
+                          ],
+                        ),
+                      ),
+                      ClipRect(
+                        child: AnimatedSize(
+                          duration: const Duration(milliseconds: 250),
+                          curve: Curves.fastOutSlowIn,
+                          child: (!p.loading && displayList.isNotEmpty)
+                              ? Container(
+                                  color: const Color(0xFFF8FAFC),
+                                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                                  child: Row(children: [
+                                    Text(
+                                      '${displayList.map((e) => e.invJenisId).toSet().length} jenis · ${displayList.length} inventaris',
+                                      style: const TextStyle(
+                                          fontSize: 12, color: AppColors.textSecondary),
+                                    ),
+                                    AnimatedSwitcher(
+                                      duration: const Duration(milliseconds: 200),
+                                      transitionBuilder: (child, anim) => FadeTransition(opacity: anim, child: child),
+                                      child: _selectedPabrikKodes.isNotEmpty
+                                          ? Container(
+                                              key: ValueKey(_selectedPabrikKodes.join(',')),
+                                              margin: const EdgeInsets.only(left: 6),
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.primary.withValues(alpha: 0.12),
+                                                borderRadius: BorderRadius.circular(12),
+                                                border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  const Icon(Icons.location_on_rounded, size: 12, color: AppColors.primary),
+                                                  const SizedBox(width: 4),
+                                                  Text(
+                                                    _selectedPabrikKodes.length == 1
+                                                        ? p.displayPabrik(_selectedPabrikKodes.first)
+                                                        : '${_selectedPabrikKodes.length} Lokasi Terpilih',
+                                                    style: const TextStyle(
+                                                      fontSize: 11,
+                                                      color: AppColors.primary,
+                                                      fontWeight: FontWeight.w700,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  InkWell(
+                                                    onTap: () {
+                                                      setState(() {
+                                                        _selectedPabrikKodes.clear();
+                                                      });
+                                                      _onPabrikFilterChanged();
+                                                    },
+                                                    child: const Icon(Icons.close_rounded, size: 12, color: AppColors.primary),
+                                                  ),
+                                                ],
+                                              ),
+                                            )
+                                          : const SizedBox.shrink(key: ValueKey('empty_loc')),
+                                    ),
+                                    if (_search.text.isNotEmpty)
+                                      const Text(' · hasil pencarian',
+                                          style: TextStyle(
+                                              fontSize: 12,
+                                              color: AppColors.textSecondary)),
+                                  ]),
+                                )
+                              : const SizedBox.shrink(),
+                        ),
+                      ),
+                      Expanded(
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 280),
+                          switchInCurve: Curves.easeIn,
+                          switchOutCurve: Curves.easeOut,
+                          child: KeyedSubtree(
+                            key: ValueKey<String>('list_${_selectedPabrikKodes.join(",")}_${_search.text}'),
+                            child: () {
+                              if (p.loading) {
+                                return const AppShimmer(
+                                  child: SingleChildScrollView(
+                                    physics: NeverScrollableScrollPhysics(),
+                                    padding: EdgeInsets.only(top: 8),
+                                    child: Column(
+                                      children: [
+                                        AppSkeletonFolderCard(),
+                                        AppSkeletonFolderCard(),
+                                        AppSkeletonFolderCard(),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              }
+                              if (displayList.isEmpty) {
+                                return EmptyState(
+                                  message: 'Belum ada data inventaris',
+                                  actionLabel: 'Tambah',
+                                  onAction: () => _openForm(),
+                                );
+                              }
+                              final grouped = <int, List<InventarisModel>>{};
+                              for (final item in displayList) {
+                                grouped
+                                    .putIfAbsent(
+                                        item.invJenisId, () => <InventarisModel>[])
+                                    .add(item);
+                              }
+                              final jenisIds = grouped.keys.toList()..sort();
 
-                          return ListView.separated(
-                            physics: const BouncingScrollPhysics(),
-                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
-                            itemCount: jenisIds.length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(height: 12),
-                            itemBuilder: (_, i) {
-                              final jenisId = jenisIds[i];
-                              final items = grouped[jenisId]!;
-                              final firstItem = items.first;
-                              final jenisNama =
-                                  p.jenisById(jenisId)?.jenisNama ??
-                                      'Jenis #$jenisId';
-                              final kategoriLabel =
-                                  p.kategoriByJenisId(jenisId) ??
-                                      firstItem.invKategori;
-                              final expanded =
-                                  _expandedJenisIds.contains(jenisId);
+                              return ListView.separated(
+                                physics: const BouncingScrollPhysics(),
+                                padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
+                                itemCount: jenisIds.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: 12),
+                                itemBuilder: (_, i) {
+                                  final jenisId = jenisIds[i];
+                                  final items = grouped[jenisId]!;
+                                  final firstItem = items.first;
+                                  final jenisNama =
+                                      p.jenisById(jenisId)?.jenisNama ??
+                                          'Jenis #$jenisId';
+                                  final kategoriLabel =
+                                      p.kategoriByJenisId(jenisId) ??
+                                          firstItem.invKategori;
+                                  final expanded =
+                                      _expandedJenisIds.contains(jenisId);
 
-                              return _InventarisGroupCard(
-                                jenisId: jenisId,
-                                jenisNama: jenisNama,
-                                kategoriLabel: kategoriLabel,
-                                items: items,
-                                expanded: expanded,
-                                onToggle: () {
-                                  setState(() {
-                                    if (expanded) {
-                                      _expandedJenisIds.remove(jenisId);
-                                    } else {
-                                      _expandedJenisIds.add(jenisId);
-                                    }
-                                  });
+                                  return _InventarisGroupCard(
+                                    jenisId: jenisId,
+                                    jenisNama: jenisNama,
+                                    kategoriLabel: kategoriLabel,
+                                    items: items,
+                                    expanded: expanded,
+                                    onToggle: () {
+                                      setState(() {
+                                        if (expanded) {
+                                          _expandedJenisIds.remove(jenisId);
+                                        } else {
+                                          _expandedJenisIds.add(jenisId);
+                                        }
+                                      });
+                                    },
+                                    pabrikLabelBuilder: p.displayPabrik,
+                                    onEditItem: _openForm,
+                                    onAddItem: (jId) => _openForm(null, jId),
+                                  );
                                 },
-                                pabrikLabelBuilder: p.displayPabrik,
-                                onEditItem: _openForm,
-                                onAddItem: (jId) => _openForm(null, jId),
                               );
-                            },
-                          );
-                        }(),
+                            }(),
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -370,40 +747,64 @@ class _InventarisGroupCardState extends State<_InventarisGroupCard>
                             color: AppColors.textPrimary,
                           ),
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          widget.kategoriLabel,
-                          style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
+                        const SizedBox(height: 4),
+                        Builder(builder: (context) {
+                          final divColor = AppDivisiColors.getColor(widget.kategoriLabel);
+                          final divIcon = AppDivisiColors.getIcon(widget.kategoriLabel);
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: divColor.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(divIcon, size: 11, color: divColor),
+                                const SizedBox(width: 4),
+                                Text(
+                                  widget.kategoriLabel.toUpperCase(),
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: divColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
                       ],
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppColors.primarySoft,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      '${widget.items.length}',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.primary,
+                  Builder(builder: (context) {
+                    final divColor = AppDivisiColors.getColor(widget.kategoriLabel);
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: divColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(6),
                       ),
-                    ),
-                  ),
+                      child: Text(
+                        '${widget.items.length}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: divColor,
+                        ),
+                      ),
+                    );
+                  }),
                   const SizedBox(width: 6),
-                  IconButton(
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    onPressed: () => widget.onAddItem(widget.jenisId),
-                    icon: const Icon(Icons.add_circle_outline, size: 20, color: AppColors.primary),
-                  ),
+                  Builder(builder: (context) {
+                    final divColor = AppDivisiColors.getColor(widget.kategoriLabel);
+                    return IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      onPressed: () => widget.onAddItem(widget.jenisId),
+                      icon: Icon(Icons.add_circle_outline, size: 20, color: divColor),
+                    );
+                  }),
                   const SizedBox(width: 4),
                   RotationTransition(
                     turns: _iconTurns,
@@ -490,6 +891,35 @@ class _InventarisCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    if (item.invKategori.isNotEmpty) ...[
+                      const SizedBox(width: 6),
+                      Builder(builder: (context) {
+                        final divColor = AppDivisiColors.getColor(item.invKategori);
+                        final divIcon = AppDivisiColors.getIcon(item.invKategori);
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: divColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(divIcon, size: 10, color: divColor),
+                              const SizedBox(width: 3),
+                              Text(
+                                item.invKategori.toUpperCase(),
+                                style: TextStyle(
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: divColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                    ],
                     if (isInactive) ...[
                       const SizedBox(width: 6),
                       Container(

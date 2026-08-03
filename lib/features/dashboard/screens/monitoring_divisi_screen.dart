@@ -95,29 +95,11 @@ class _MonitoringDivisiScreenState extends State<MonitoringDivisiScreen>
   }
 
   IconData _iconForDivisi(String divisi) {
-    switch (divisi.toLowerCase()) {
-      case 'it':
-        return Icons.computer_rounded;
-      case 'ga':
-        return Icons.precision_manufacturing_rounded;
-      case 'driver':
-        return Icons.local_shipping_rounded;
-      default:
-        return Icons.business_rounded;
-    }
+    return AppDivisiColors.getIcon(divisi);
   }
 
   Color _colorForDivisi(String divisi) {
-    switch (divisi.toLowerCase()) {
-      case 'it':
-        return const Color(0xFF4F46E5); // Indigo enterprise
-      case 'ga':
-        return const Color(0xFFEA580C); // Orange warm
-      case 'driver':
-        return const Color(0xFF0D9488); // Teal rich
-      default:
-        return AppColors.primary;
-    }
+    return AppDivisiColors.getColor(divisi);
   }
 
 

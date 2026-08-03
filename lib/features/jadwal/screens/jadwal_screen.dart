@@ -85,7 +85,7 @@ class _JadwalScreenState extends State<JadwalScreen> {
     final role = auth.user?['user_jabatan'];
     final isAdmin = role == 'admin' || role == 'manager';
     if (isAdmin) {
-      await jadwalProvider.fetchJadwal(status: 'Draft');
+      await jadwalProvider.fetchJadwalByDivisi(status: 'Draft');
     } else {
       await jadwalProvider.fetchJadwalByUser(status: 'Draft');
     }
@@ -423,7 +423,7 @@ class _JadwalScreenState extends State<JadwalScreen> {
                   const SizedBox(width: 10),
                   const Expanded(
                     child: Text(
-                      'Panduan Penggunaan Gap Hari',
+                      'Fitur Gap Penjadwalan (Panduan Singkat)',
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
@@ -449,59 +449,153 @@ class _JadwalScreenState extends State<JadwalScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Gap Hari mengontrol kapan realisasi boleh dilakukan. '
-                    'Ada dua jenis gap yang bekerja secara berbeda:',
-                    style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
-                        height: 1.5),
-                  ),
-                  const SizedBox(height: 10),
-                  Table(
-                    border: TableBorder.all(
-                      color: const Color(0xFFE2E8F0),
-                      borderRadius: BorderRadius.circular(8),
+                  // -- Penjelasan singkat --
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: AppColors.primary.withValues(alpha: 0.12),
+                      ),
                     ),
-                    columnWidths: const {
-                      0: FlexColumnWidth(2),
-                      1: FlexColumnWidth(3),
-                    },
-                    children: [
-                      const TableRow(
-                        decoration: BoxDecoration(
-                          color: Color(0xFFF1F5F9),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.info_outline_rounded,
+                            size: 16,
+                            color:
+                                AppColors.primary.withValues(alpha: 0.7)),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text(
+                            '"Gap Penjadwalan" adalah aturan jarak waktu minimal '
+                            'antar maintenance. Tujuannya agar maintenance '
+                            'tidak dilakukan terlalu dekat waktunya.',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: AppColors.textSecondary,
+                              height: 1.5,
+                            ),
+                          ),
                         ),
-                        children: [
-                          Padding(
-                            padding: EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 8),
-                            child: Text('Kebutuhan',
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // -- Header tabel --
+                  Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(10),
+                        topRight: Radius.circular(10),
+                      ),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Padding(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                      child: IntrinsicHeight(
+                        child: Row(
+                          children: [
+                            const Expanded(
+                              flex: 5,
+                              child: Text(
+                                'Fungsi',
                                 style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.textSecondary)),
-                          ),
-                          Padding(
-                            padding: EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 8),
-                            child: Text('Gunakan',
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.textSecondary,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              width: 1,
+                              color: const Color(0xFFCBD5E1),
+                            ),
+                            const SizedBox(width: 8),
+                            const Expanded(
+                              flex: 4,
+                              child: Text(
+                                'Cara Mengatur',
                                 style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.textSecondary)),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.textSecondary,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // -- Baris 1: Jeda per Alat --
+                  _buildGuideTableRow(
+                    title: 'Gap per Unit Inventaris (Mesin)',
+                    description:
+                        'Mencegah satu unit/mesin di-maintenance berulang dalam waktu berdekatan',
+                    example:
+                        'Contoh: Laptop, jeda 30 hari → unit yang sama tidak '
+                        'dapat di-maintenance lagi sebelum 30 hari sejak maintenance terakhir',
+                    settingLocation: 'Menu Master Jenis\n→ Pilih jenis\n→ Atur "GAP Hari Realisasi per Inventaris"',
+                    isFirst: true,
+                  ),
+
+                  // -- Baris 2: Jeda per Jadwal --
+                  _buildGuideTableRow(
+                    title: 'Gap per Jadwal (Jeda Periode)',
+                    description:
+                        'Memberikan jeda waktu antar siklus periode maintenance (misal: 3 bulan sekali)',
+                    example:
+                        'Contoh: Maintenance Laptop, jeda 90 hari → setelah diservis di bulan ke-1, '
+                        'target bulan ke-2 & ke-3 otomatis 0 (tidak merusak % target)',
+                    settingLocation: 'Buat/Edit Jadwal\n→ Isi kolom\n→ "GAP Realisasi (hari)"',
+                    isLast: true,
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  // -- Ringkasan singkat --
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: AppColors.success.withValues(alpha: 0.15),
+                      ),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.lightbulb_outline_rounded,
+                            size: 14,
+                            color:
+                                AppColors.success.withValues(alpha: 0.8)),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text(
+                            'Singkatnya: "Gap per Unit Inventaris" membatasi jeda waktu antar servis untuk unit yang sama. '
+                            '"Gap per Jadwal" membatasi jeda periode siklus jadwal (misal: 90 hari / 3 bulan sekali). '
+                            'Keduanya dapat dipakai bersamaan.',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textSecondary,
+                              height: 1.5,
+                              fontStyle: FontStyle.italic,
+                            ),
                           ),
-                        ],
-                      ),
-                      _guideRow(
-                        'Cegah mesin diservis terlalu sering',
-                        'Menu Jenis → Gap per Inventaris',
-                      ),
-                      _guideRow(
-                        'Cegah jadwal dilakukan terlalu sering',
-                        'Form Jadwal → Gap Realisasi',
-                      ),
-                    ],
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -512,25 +606,131 @@ class _JadwalScreenState extends State<JadwalScreen> {
     );
   }
 
-  static TableRow _guideRow(String kebutuhan, String solusi) {
-    return TableRow(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          child: Text(kebutuhan,
-              style: const TextStyle(
-                  fontSize: 11, color: AppColors.textPrimary, height: 1.4)),
+  Widget _buildGuideTableRow({
+    required String title,
+    required String description,
+    required String example,
+    required String settingLocation,
+    bool isFirst = false,
+    bool isLast = false,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          left: const BorderSide(color: Color(0xFFE2E8F0)),
+          right: const BorderSide(color: Color(0xFFE2E8F0)),
+          bottom: const BorderSide(color: Color(0xFFE2E8F0)),
+          top: isFirst
+              ? BorderSide.none
+              : const BorderSide(color: Color(0xFFE2E8F0), width: 0.5),
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          child: Text(solusi,
-              style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.primary,
-                  height: 1.4)),
+        borderRadius: isLast
+            ? const BorderRadius.only(
+                bottomLeft: Radius.circular(10),
+                bottomRight: Radius.circular(10),
+              )
+            : null,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Kolom Fungsi
+              Expanded(
+                flex: 5,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      description,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textSecondary,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 7, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(5),
+                        border: Border.all(
+                          color: const Color(0xFFE2E8F0),
+                          width: 0.5,
+                        ),
+                      ),
+                      child: Text(
+                        example,
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          color:
+                              AppColors.textSecondary.withValues(alpha: 0.8),
+                          height: 1.4,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // Garis Pemisah Antar Kolom
+              Container(
+                width: 1,
+                color: const Color(0xFFE2E8F0),
+              ),
+              const SizedBox(width: 8),
+
+              // Kolom Cara Mengatur
+              Expanded(
+                flex: 4,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.04),
+                    borderRadius: BorderRadius.circular(7),
+                    border: Border.all(
+                      color: AppColors.primary.withValues(alpha: 0.1),
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          settingLocation,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primary,
+                            height: 1.45,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-      ],
+      ),
     );
   }
 
@@ -569,7 +769,7 @@ class _JadwalScreenState extends State<JadwalScreen> {
                   });
                 },
                 decoration: InputDecoration(
-                  hintText: 'Cari judul, nama inventaris, atau jenis...',
+                  hintText: 'Cari By Judul, Nama Inventaris, atau Jenis...',
                   prefixIcon: const Icon(Icons.search, color: AppColors.primary),
                   suffixIcon: _searchCtrl.text.isNotEmpty
                       ? IconButton(
@@ -1061,19 +1261,11 @@ class _JadwalCard extends StatelessWidget {
   });
 
   Color _colorForDivisi(String? divisiRaw) {
-    final divisi = (divisiRaw ?? '').toLowerCase();
-    if (divisi == 'it') return Colors.indigo;
-    if (divisi == 'ga') return Colors.orange.shade700;
-    if (divisi == 'driver') return Colors.teal.shade700;
-    return AppColors.primary;
+    return AppDivisiColors.getColor(divisiRaw);
   }
 
   IconData _iconForDivisi(String? divisiRaw) {
-    final divisi = (divisiRaw ?? '').toLowerCase();
-    if (divisi == 'it') return Icons.support_agent_rounded;
-    if (divisi == 'ga') return Icons.precision_manufacturing_outlined;
-    if (divisi == 'driver') return Icons.local_shipping_outlined;
-    return Icons.event_note;
+    return AppDivisiColors.getIcon(divisiRaw);
   }
 
   String _getRemainingDays(JadwalModel j) {
@@ -1133,27 +1325,27 @@ class _JadwalCard extends StatelessWidget {
 
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         child: Material(
           color: Colors.transparent,
           child: InkWell(
             onTap: onTap,
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1161,14 +1353,14 @@ class _JadwalCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(10),
+                        padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: divisiColor.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(14),
+                          color: divisiColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Icon(icon, size: 22, color: divisiColor),
+                        child: Icon(icon, size: 20, color: divisiColor),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1177,8 +1369,8 @@ class _JadwalCard extends StatelessWidget {
                               jadwal.jdwJudul,
                               style: const TextStyle(
                                 fontWeight: FontWeight.w700,
-                                fontSize: 14,
-                                height: 1.3,
+                                fontSize: 13.5,
+                                height: 1.25,
                                 color: AppColors.textPrimary,
                               ),
                               maxLines: 3,
@@ -1190,7 +1382,7 @@ class _JadwalCard extends StatelessWidget {
                       const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
+                            horizontal: 9, vertical: 3.5),
                         decoration: BoxDecoration(
                           color: badgeBg,
                           borderRadius: BorderRadius.circular(99),
@@ -1200,18 +1392,18 @@ class _JadwalCard extends StatelessWidget {
                           style: TextStyle(
                             color: badgeText,
                             fontWeight: FontWeight.w800,
-                            fontSize: 11,
+                            fontSize: 10.5,
                           ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   Row(
                     children: [
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
+                            horizontal: 7, vertical: 2.5),
                         decoration: BoxDecoration(
                           color: divisiColor.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(6),
@@ -1237,14 +1429,14 @@ class _JadwalCard extends StatelessWidget {
                     ],
                   ),
 
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 10),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
                         'Progres Unit',
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 11.5,
                           color: Colors.grey.shade600,
                           fontWeight: FontWeight.w600,
                         ),
@@ -1252,19 +1444,19 @@ class _JadwalCard extends StatelessWidget {
                       Text(
                         '$selesai / $target selesai (${(progressPercent * 100).round()}%)',
                         style: const TextStyle(
-                          fontSize: 12,
+                          fontSize: 11.5,
                           fontWeight: FontWeight.w800,
                           color: AppColors.textPrimary,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 5),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(99),
                     child: LinearProgressIndicator(
                       value: progressPercent,
-                      minHeight: 8,
+                      minHeight: 6,
                       backgroundColor: Colors.grey.shade100,
                       valueColor: AlwaysStoppedAnimation<Color>(
                         progressPercent == 1.0
@@ -1277,7 +1469,7 @@ class _JadwalCard extends StatelessWidget {
                   ),
 
                   if (isUser) ...[
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 10),
                     _actionBtn(
                       Icons.playlist_add_check_circle_outlined,
                       'Lakukan Realisasi',
@@ -1288,10 +1480,10 @@ class _JadwalCard extends StatelessWidget {
 
                   if (isAdmin) ...[
                     const Padding(
-                      padding: EdgeInsets.only(top: 12),
+                      padding: EdgeInsets.only(top: 8),
                       child: Divider(height: 1, color: AppColors.border),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 4),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
@@ -1300,7 +1492,7 @@ class _JadwalCard extends StatelessWidget {
                           style: TextButton.styleFrom(
                             foregroundColor: AppColors.warning,
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 6),
+                                horizontal: 10, vertical: 4),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
@@ -1309,7 +1501,7 @@ class _JadwalCard extends StatelessWidget {
                           label: const Text(
                             'Edit',
                             style: TextStyle(
-                                fontSize: 12, fontWeight: FontWeight.w700),
+                                fontSize: 11.5, fontWeight: FontWeight.w700),
                           ),
                         ),
                         const SizedBox(width: 4),
@@ -1384,8 +1576,9 @@ class _JadwalForm extends StatefulWidget {
 
 class _JadwalFormState extends State<_JadwalForm> {
   final _form = GlobalKey<FormState>();
-  final _judulCtrl = TextEditingController();
+  bool _targetAutoAll = true;
   final _targetCtrl = TextEditingController();
+  final _autoTargetCtrl = TextEditingController();
   final _gapCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
   final TextEditingController _jenisCtrl = TextEditingController();
@@ -1460,7 +1653,7 @@ class _JadwalFormState extends State<_JadwalForm> {
 
     final jenis = _jenisCtrl.text.trim().isEmpty ? '-' : _jenisCtrl.text.trim();
     final jenisGapHari = master.jenisById(_jenisId!)?.jenisGapHari ?? 0;
-    final target = int.tryParse(_targetCtrl.text.trim()) ?? 0;
+    final target = _targetAutoAll ? 0 : (int.tryParse(_targetCtrl.text.trim()) ?? 0);
     final lokasi = _pabrikCodes.map((code) => master.displayPabrik(code)).join(', ');
     final mulai = _fmtDateDisplay(_tglMulai);
     final selesai = _tglSelesai != null ? _fmtDateDisplay(_tglSelesai) : 'Tanpa batas akhir';
@@ -1490,12 +1683,23 @@ class _JadwalFormState extends State<_JadwalForm> {
   }
 
   @override
+  void dispose() {
+    _autoTargetCtrl.dispose();
+    _targetCtrl.dispose();
+    _gapCtrl.dispose();
+    _notesCtrl.dispose();
+    _jenisCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   void initState() {
     super.initState();
+    _autoTargetCtrl.text = 'Semua Unit (${_maxTargetUnit ?? 0} unit aktif)';
     final d = widget.item;
     if (d != null) {
-      _judulCtrl.text = d.jdwJudul;
-      _targetCtrl.text = '${d.jdwTarget ?? 1}';
+      _targetAutoAll = d.jdwTarget == null || d.jdwTarget == 0;
+      _targetCtrl.text = _targetAutoAll ? '0' : '${d.jdwTarget}';
       _gapCtrl.text = '${d.jdwGapHari}';
       _notesCtrl.text = d.jdwNotes ?? '';
       _jenisId = d.jdwJenisId;
@@ -1511,7 +1715,8 @@ class _JadwalFormState extends State<_JadwalForm> {
       final jenis = context.read<MasterProvider>().jenisById(d.jdwJenisId);
       _jenisCtrl.text = jenis?.jenisNama ?? 'ID ${d.jdwJenisId}';
     } else {
-      _targetCtrl.text = '1';
+      _targetAutoAll = true;
+      _targetCtrl.text = '0';
       _gapCtrl.text = '0';
       // Untuk create, set divisi dari auth user
       final auth = context.read<AuthProvider>();
@@ -1521,6 +1726,7 @@ class _JadwalFormState extends State<_JadwalForm> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       final master = context.read<MasterProvider>();
+      await master.fetchJenisWithInventaris(showLoading: false);
       await master.fetchUsers(scope: 'all', showLoading: false);
       if (!mounted) return;
       if (_assignedToUserId != null && _divisi != null && _divisi!.isNotEmpty) {
@@ -1537,16 +1743,6 @@ class _JadwalFormState extends State<_JadwalForm> {
         _syncTargetLimitForJenis(_jenisId!);
       }
     });
-  }
-
-  @override
-  void dispose() {
-    _judulCtrl.dispose();
-    _targetCtrl.dispose();
-    _gapCtrl.dispose();
-    _notesCtrl.dispose();
-    _jenisCtrl.dispose();
-    super.dispose();
   }
 
   String _fmtDateApi(DateTime? d) => DateFormatter.toApi(d);
@@ -1592,7 +1788,13 @@ class _JadwalFormState extends State<_JadwalForm> {
     );
     if (!mounted) return;
 
-    final maxTarget = master.inventarisList.length;
+    final matchingInventaris = master.inventarisList.where((inv) {
+      if (_pabrikCodes.isEmpty) return true;
+      return _pabrikCodes.contains(inv.invPabrikKode);
+    }).toList();
+
+    final maxTarget = matchingInventaris.length;
+    _autoTargetCtrl.text = 'Semua Unit ($maxTarget unit aktif)';
     setState(() {
       _maxTargetUnit = maxTarget;
       _loadingTargetLimit = false;
@@ -1740,10 +1942,7 @@ class _JadwalFormState extends State<_JadwalForm> {
   }
 
   void _autoGenerateJudul() {
-    final generated = _getGeneratedJudul();
-    setState(() {
-      _judulCtrl.text = generated;
-    });
+    setState(() {});
   }
 
   Widget _requiredLabel(String label) {
@@ -1771,12 +1970,13 @@ class _JadwalFormState extends State<_JadwalForm> {
       return code;
     }
 
+    final allowedCodes = master.inventarisList
+        .map((inv) => inv.invPabrikKode)
+        .whereType<String>()
+        .toSet();
+
     final filteredPabrikList = master.pabrikList.where((p) {
-      if (_jenisId != null) {
-        final allowedCodes = master.inventarisList
-            .map((inv) => inv.invPabrikKode)
-            .whereType<String>()
-            .toSet();
+      if (_jenisId != null && allowedCodes.isNotEmpty) {
         if (!allowedCodes.contains(p.pabKode)) return false;
       }
       return !_pabrikCodes.contains(p.pabKode);
@@ -1824,6 +2024,9 @@ class _JadwalFormState extends State<_JadwalForm> {
                       _selectedPabrikValue = null;
                       _autoGenerateJudul();
                     });
+                    if (_jenisId != null) {
+                      _syncTargetLimitForJenis(_jenisId!);
+                    }
                     _pabrikDropdownKey.currentState?.didChange(null);
                   },
             validator: (_) {
@@ -1856,6 +2059,9 @@ class _JadwalFormState extends State<_JadwalForm> {
                       _pabrikCodes.remove(code);
                       _autoGenerateJudul();
                     });
+                    if (_jenisId != null) {
+                      _syncTargetLimitForJenis(_jenisId!);
+                    }
                   },
                 );
               }).toList(),
@@ -1891,7 +2097,8 @@ class _JadwalFormState extends State<_JadwalForm> {
               if (!master.isJenisActive(_jenisId!)) {
                 return 'Jenis inventaris nonaktif';
               }
-              if (!master.hasInventarisForJenis(_jenisId!)) {
+              final hasActiveInv = (_maxTargetUnit != null && _maxTargetUnit! > 0) || master.hasInventarisForJenis(_jenisId!);
+              if (!hasActiveInv) {
                 return 'Jenis belum punya inventaris aktif';
               }
               return null;
@@ -1937,10 +2144,11 @@ class _JadwalFormState extends State<_JadwalForm> {
       );
       return;
     }
-    if (!master.hasInventarisForJenis(_jenisId!)) {
+    final hasActiveInv = (_maxTargetUnit != null && _maxTargetUnit! > 0) || master.hasInventarisForJenis(_jenisId!);
+    if (!hasActiveInv) {
       await AppNotifier.showWarning(
         context,
-        'Jenis yang dipilih belum punya inventaris aktif. Tambahkan inventaris dulu.',
+        'Jenis yang dipilih belum punya inventaris aktif.',
       );
       return;
     }
@@ -1966,17 +2174,21 @@ class _JadwalFormState extends State<_JadwalForm> {
           context, 'Pilih minimal satu pabrik/lokasi jadwal');
       return;
     }
-    final parsedTarget = int.tryParse(_targetCtrl.text.trim());
-    if (parsedTarget == null || parsedTarget < 1) {
-      await AppNotifier.showWarning(context, 'Target wajib angka minimal 1');
-      return;
-    }
-    if (_maxTargetUnit != null && parsedTarget > _maxTargetUnit!) {
-      await AppNotifier.showWarning(
-        context,
-        'Target tidak boleh melebihi total inventaris jenis ($_maxTargetUnit unit)',
-      );
-      return;
+    final parsedTarget = _targetAutoAll
+        ? (_maxTargetUnit != null && _maxTargetUnit! > 0 ? _maxTargetUnit! : 1)
+        : (int.tryParse(_targetCtrl.text.trim()) ?? 1);
+    if (!_targetAutoAll) {
+      if (parsedTarget < 1) {
+        await AppNotifier.showWarning(context, 'Target manual wajib angka minimal 1');
+        return;
+      }
+      if (_maxTargetUnit != null && parsedTarget > _maxTargetUnit!) {
+        await AppNotifier.showWarning(
+          context,
+          'Target tidak boleh melebihi total inventaris jenis ($_maxTargetUnit unit)',
+        );
+        return;
+      }
     }
     final parsedGapHari = int.tryParse(_gapCtrl.text.trim());
     if (_showGapField && (parsedGapHari == null || parsedGapHari < 0)) {
@@ -2233,50 +2445,133 @@ class _JadwalFormState extends State<_JadwalForm> {
               ],
               const SizedBox(height: 14),
               TextFormField(
-                controller: _targetCtrl,
+                key: ValueKey<bool>(_targetAutoAll),
+                controller: _targetAutoAll ? _autoTargetCtrl : _targetCtrl,
+                readOnly: _targetAutoAll,
                 keyboardType: TextInputType.number,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: _targetAutoAll
+                      ? const Color(0xFF15803D)
+                      : AppColors.textPrimary,
+                ),
                 onChanged: (_) {
                   if (_targetLimitError != null) {
-                    setState(() {
-                      _targetLimitError = null;
-                    });
+                    setState(() => _targetLimitError = null);
                   }
                 },
                 decoration: InputDecoration(
                   label: _requiredLabel('Target Unit per Jadwal'),
-                  prefixIcon: const Icon(Icons.flag_outlined),
-                  hintText: 'Contoh: 6',
-                  errorText: _targetLimitError,
-                  suffixIcon: SizedBox(
-                    width: 40,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        InkWell(
-                          onTap: (_loadingTargetLimit || _maxTargetUnit == null)
-                              ? null
-                              : () => setState(() => _adjustTarget(1)),
-                          child: const Padding(
-                            padding: EdgeInsets.only(top: 2),
-                            child: Icon(Icons.keyboard_arrow_up, size: 20),
-                          ),
-                        ),
-                        InkWell(
-                          onTap: (_loadingTargetLimit || _maxTargetUnit == null)
-                              ? null
-                              : () => setState(() => _adjustTarget(-1)),
-                          child: const Padding(
-                            padding: EdgeInsets.only(bottom: 2),
-                            child: Icon(Icons.keyboard_arrow_down, size: 20),
-                          ),
-                        ),
-                      ],
-                    ),
+                  prefixIcon: Icon(
+                    _targetAutoAll ? Icons.auto_awesome : Icons.flag_outlined,
+                    color: _targetAutoAll
+                        ? const Color(0xFF16A34A)
+                        : AppColors.textSecondary,
                   ),
+                  suffixIcon: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (!_targetAutoAll)
+                        SizedBox(
+                          width: 32,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              InkWell(
+                                onTap: (_loadingTargetLimit ||
+                                        _maxTargetUnit == null)
+                                    ? null
+                                    : () => setState(() => _adjustTarget(1)),
+                                child: const Icon(Icons.keyboard_arrow_up,
+                                    size: 16),
+                              ),
+                              InkWell(
+                                onTap: (_loadingTargetLimit ||
+                                        _maxTargetUnit == null)
+                                    ? null
+                                    : () => setState(() => _adjustTarget(-1)),
+                                child: const Icon(Icons.keyboard_arrow_down,
+                                    size: 16),
+                              ),
+                            ],
+                          ),
+                        ),
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(20),
+                          onTap: () {
+                            setState(() {
+                              _targetAutoAll = !_targetAutoAll;
+                              if (_targetAutoAll) {
+                                _targetCtrl.text = '0';
+                                _targetLimitError = null;
+                              } else {
+                                if (_targetCtrl.text == '0' ||
+                                    _targetCtrl.text.isEmpty) {
+                                  _targetCtrl.text =
+                                      '${_maxTargetUnit ?? 1}';
+                                }
+                              }
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: _targetAutoAll
+                                  ? const Color(0xFFDCFCE7)
+                                  : AppColors.primary.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: _targetAutoAll
+                                    ? const Color(0xFF86EFAC)
+                                    : AppColors.primary.withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _targetAutoAll
+                                      ? Icons.auto_awesome
+                                      : Icons.tune_outlined,
+                                  size: 12,
+                                  color: _targetAutoAll
+                                      ? const Color(0xFF15803D)
+                                      : AppColors.primary,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  _targetAutoAll ? 'Otomatis' : 'Manual',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: _targetAutoAll
+                                        ? const Color(0xFF15803D)
+                                        : AppColors.primary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  helperText: _targetAutoAll
+                      ? '✨ Mode Otomatis: Mencakup seluruh unit aktif (${_maxTargetUnit ?? 0} unit) & unit baru yang ditambahkan nanti.'
+                      : '⚙️ Mode Manual: Membatasi kuota target maintenance per siklus (maksimal ${_maxTargetUnit ?? 0} unit).',
+                  helperMaxLines: 2,
+                  errorText: _targetLimitError,
                 ),
                 validator: (v) {
+                  if (_targetAutoAll) return null;
                   final n = int.tryParse((v ?? '').trim());
-                  if (n == null || n < 1) return 'Target wajib angka minimal 1';
+                  if (n == null || n < 1) {
+                    return 'Target manual wajib angka minimal 1';
+                  }
                   if (_maxTargetUnit != null && n > _maxTargetUnit!) {
                     return 'Target maksimal $_maxTargetUnit unit';
                   }
@@ -2469,7 +2764,7 @@ class _SummaryWidget extends StatelessWidget {
         _row(Icons.person_outline, 'Pelaksana', pelaksana),
         _row(Icons.repeat_outlined, 'Frekuensi', frekuensi),
         _row(Icons.flag_outlined, 'Target',
-            target > 0 ? '$target unit per $frekuensi' : '-'),
+            target > 0 ? '$target unit per $frekuensi' : 'Semua unit (Otomatis) per $frekuensi'),
         _row(Icons.location_on_outlined, 'Lokasi / Pabrik', lokasi),
         _row(Icons.calendar_today_outlined, 'Mulai', mulai),
         _row(Icons.event_outlined, 'Selesai', selesai),
@@ -2478,10 +2773,10 @@ class _SummaryWidget extends StatelessWidget {
             Icons.timelapse_outlined,
             'Gap Jadwal',
             jadwalGapHari == 0
-                ? 'Tidak ada (dapat realisasi kapan saja)'
-                : 'Realisasi jeda $jadwalGapHari hari per $frekuensi',
+                ? 'Tidak ada (jadwal bisa dikerjakan kapan saja)'
+                : 'Jadwal akan diperbaharui setiap $jadwalGapHari hari',
             jadwalGapHari > 0
-                ? 'Jika target > 1 unit, isi 0 agar tidak terblokir'
+                ? 'Jadwal berikutnya muncul konsisten $jadwalGapHari hari'
                 : null,
             jadwalGapHari > 0
                 ? const Color(0xFFF97316)
@@ -2489,10 +2784,10 @@ class _SummaryWidget extends StatelessWidget {
           ),
         _rowWithNote(
           Icons.schedule_outlined,
-          'Gap per Mesin',
+          'Gap per Jenis Inventaris',
           jenisGapHari == 0
-              ? 'Tidak ada (mesin yang sama bisa di maintenance kapan saja)'
-              : 'Mesin yang sama dapat di maintenance dengan jeda $jenisGapHari hari',
+              ? 'Tidak ada (Inventaris jenis ini bisa di-maintenance kapan saja)'
+              : 'Inventaris jenis ini memiliki jeda $jenisGapHari hari untuk maintenance selanjutnya',
           null,
           jenisGapHari > 0 ? AppColors.primary : AppColors.textSecondary,
         ),

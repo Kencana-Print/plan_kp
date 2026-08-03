@@ -285,19 +285,23 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.event_note_rounded,
-                  color: AppColors.primary,
-                  size: 22,
-                ),
-              ),
+              Builder(builder: (context) {
+                final divisiColor = AppDivisiColors.getColor(jadwal.jdwDivisi);
+                final divisiIcon = AppDivisiColors.getIcon(jadwal.jdwDivisi);
+                return Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: divisiColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    divisiIcon,
+                    color: divisiColor,
+                    size: 22,
+                  ),
+                );
+              }),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -317,6 +321,16 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
                       spacing: 6,
                       runSpacing: 4,
                       children: [
+                        Builder(builder: (context) {
+                          final divisiColor = AppDivisiColors.getColor(jadwal.jdwDivisi);
+                          final divisiIcon = AppDivisiColors.getIcon(jadwal.jdwDivisi);
+                          return _badgeChip(
+                            icon: divisiIcon,
+                            label: jadwal.jdwDivisi.toUpperCase(),
+                            bgColor: divisiColor.withValues(alpha: 0.12),
+                            textColor: divisiColor,
+                          );
+                        }),
                         _badgeChip(
                           icon: Icons.repeat_rounded,
                           label: jadwal.jdwFrekuensi,
@@ -357,7 +371,7 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      'Capaian Realisasi',
+                      'Capaian',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -412,7 +426,7 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
                     Expanded(
                       child: _compactBarStat(
                         icon: Icons.inventory_2_outlined,
-                        label: 'Total Unit',
+                        label: 'Jumlah Inventaris',
                         value: '$totalUnit Unit',
                         color: const Color(0xFF7C3AED),
                       ),
@@ -641,8 +655,8 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
               icon: Icons.timelapse_outlined,
               title: 'Gap Jadwal',
               subtitle: jadwalGapHari == 0
-                  ? 'Tidak ada jeda — jadwal dapat direalisasikan kapan saja.'
-                  : 'Realisasi jeda $jadwalGapHari hari per ${jadwal.jdwFrekuensi}.',
+                  ? 'Tidak ada gap — jadwal dapat direalisasikan kapan saja.'
+                  : 'Realisasi gap $jadwalGapHari hari per ${jadwal.jdwFrekuensi}.',
               note: jadwalGapHari > 0
                   ? 'Dengan gap > 0 dan target banyak unit, pastikan jadwal tidak terblokir. '
                       'Pertimbangkan set 0 jika menargetkan banyak unit sekaligus.'
@@ -660,10 +674,10 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
           if (showJadwalGap) const SizedBox(height: 8),
           _gapCard(
             icon: Icons.schedule_outlined,
-            title: 'Gap per Mesin (dari Jenis)',
+            title: 'Gap Jenis Inventaris',
             subtitle: jenisGapHari == 0
-                ? 'Tidak ada jeda — mesin yang sama bisa di-maintenance kapan saja.'
-                : 'Mesin yang sama dapat di-maintenance dengan jeda $jenisGapHari hari.',
+                ? 'Tidak ada gap — inventaris yang sama bisa di-maintenance kapan saja.'
+                : 'Inventaris yang sama dapat di-maintenance dengan gap $jenisGapHari hari.',
             note: null,
             color: jenisGapHari > 0
                 ? AppColors.primary
@@ -794,10 +808,10 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
             _filterChip(label: 'Semua ($countTotal)', value: 'Semua'),
             const SizedBox(width: 8),
             _filterChip(
-                label: 'Sudah Terealisasi ($countSudah)', value: 'Sudah'),
+                label: 'Sudah Perawatan ($countSudah)', value: 'Sudah'),
             const SizedBox(width: 8),
             _filterChip(
-                label: 'Belum Terealisasi ($countBelum)', value: 'Belum'),
+                label: 'Belum Perawatan ($countBelum)', value: 'Belum'),
           ],
         ),
       ),
@@ -883,7 +897,7 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 24),
                     child: Center(
                       child: Text(
-                        'Tidak ada unit yang cocok dengan filter "${_realisasiFilter == 'Sudah' ? 'Sudah Terealisasi' : 'Belum Terealisasi'}".',
+                        'Tidak ada unit yang cocok dengan filter "${_realisasiFilter == 'Sudah' ? 'Sudah Perawatan' : 'Belum Perawatan'}".',
                         style: const TextStyle(
                           fontSize: 12.5,
                           color: AppColors.textSecondary,
@@ -972,10 +986,10 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
             : const Color(0xFFE2E8F0));
 
     final statusText = sudahTerealisasi
-        ? 'Sudah Terealisasi'
+        ? 'Sudah Perawatan'
         : (!isGapEligible
             ? 'Belum Layak (Jeda s/d ${_displayDate(nextEligibleDate)})'
-            : 'Belum Terealisasi');
+            : 'Belum Perawatan');
 
     final statusIcon = sudahTerealisasi
         ? Icons.check_circle_rounded
@@ -1105,7 +1119,7 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Realisasi: ${_displayDate(realisasiItem.realTgl)}',
+                          'Maintenance: ${_displayDate(realisasiItem.realTgl)}',
                           style: const TextStyle(
                             fontSize: 11.5,
                             fontWeight: FontWeight.w600,
