@@ -15,6 +15,7 @@ import '../../../features/master/models/jenis_model.dart';
 import '../models/jadwal_model.dart';
 import '../models/realisasi_model.dart';
 import '../providers/jadwal_provider.dart';
+import '../widgets/ai_jadwal.dart';
 
 const _kPageBg = AppColors.surface;
 
@@ -92,24 +93,72 @@ class _JadwalScreenState extends State<JadwalScreen> {
     if (!mounted) return;
     await masterProvider.fetchJenis();
     await masterProvider.fetchInventaris(showLoading: false);
+
+    // Pre-fetch data pendukung di background agar form terbuka instan tanpa delay
+    masterProvider.fetchPabrik();
+    final isManager = role == 'manager';
+    final userDivisi = isManager ? null : (auth.user?['user_divisi'] ?? '');
+    masterProvider.fetchUsers(divisi: userDivisi, showLoading: false);
   }
 
-  // --- Logika Form & Action (Dipertahankan) ---
-  Future<void> _openForm([JadwalModel? item]) async {
+  // --- Logika Form & Action (Instant Non-blocking Open) ---
+  void _openForm([JadwalModel? item]) {
     final master = context.read<MasterProvider>();
     final auth = context.read<AuthProvider>();
-    await master.fetchJenis(showLoading: false);
-    await master.fetchPabrik();
+
+    // Panggil fetch di background tanpa memblokir pembukaan modal sheet
+    master.fetchJenis(showLoading: false);
+    master.fetchPabrik();
     final role = auth.user?['user_jabatan'];
     final isManager = role == 'manager';
     final userDivisi = isManager ? null : (auth.user?['user_divisi'] ?? '');
-    await master.fetchUsers(divisi: userDivisi, showLoading: false);
-    if (!mounted) return;
+    master.fetchUsers(divisi: userDivisi, showLoading: false);
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _JadwalForm(item: item),
+    );
+  }
+
+  void _openAiWizard() {
+    final master = context.read<MasterProvider>();
+    final auth = context.read<AuthProvider>();
+    master.fetchJenis(showLoading: false);
+    master.fetchPabrik();
+    final role = auth.user?['user_jabatan'];
+    final isManager = role == 'manager';
+    final userDivisi = isManager ? null : (auth.user?['user_divisi'] ?? '');
+    master.fetchUsers(divisi: userDivisi, showLoading: false);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => AiJadwalWizardSheet(
+        onOpenFullForm: (draftData) {
+          final item = JadwalModel(
+            jdwId: 0,
+            jdwJudul: draftData['jdwJudul'] ?? '',
+            jdwJenisId: draftData['jdwJenisId'] ?? 0,
+            jdwInvJenis: draftData['jdwJenisNama'],
+            jdwDivisi: draftData['jdwDivisi'] ?? 'GA',
+            jdwFrekuensi: draftData['jdwFrekuensi'] ?? 'Bulanan',
+            jdwTglMulai: draftData['jdwTglMulai'] ?? DateFormatter.toApi(DateTime.now()),
+            jdwTglSelesai: draftData['jdwTglSelesai'],
+            jdwNotes: draftData['jdwNotes'],
+            jdwTahun: DateTime.now().year,
+            jdwTarget: draftData['jdwTarget'] ?? 1,
+            jdwGapHari: draftData['jdwGapHari'] ?? 0,
+            jdwAssignedTo: draftData['jdwUserId'],
+            jdwPabrikList: List<String>.from(draftData['jdwPabrikList'] ?? []),
+            jdwStatus: 'Draft',
+          );
+          _openForm(item);
+        },
+        onSaved: () => _loadData(),
+      ),
     );
   }
 
@@ -151,6 +200,7 @@ class _JadwalScreenState extends State<JadwalScreen> {
     final belumSelesaiList = inventarisList
         .where((inv) =>
             !terpakaiInvIds.contains(inv['inv_id']) &&
+            inv['inv_is_done_current_period'] != true &&
             inv['inv_is_gap_eligible'] != false)
         .toList();
 
@@ -172,7 +222,7 @@ class _JadwalScreenState extends State<JadwalScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _InventarisPickerSheet(
+      builder: (_) => InventarisPickerSheet(
         inventarisList: inventarisList,
         onSelected: (inv) => _openRealisasiFromInventaris(jadwal, inv),
       ),
@@ -748,11 +798,9 @@ class _JadwalScreenState extends State<JadwalScreen> {
       backgroundColor: _kPageBg,
       appBar: AppBar(title: const Text('Penjadwalan'), elevation: 0),
       floatingActionButton: isAdmin
-          ? FloatingActionButton(
-              onPressed: () => _openForm(),
-              backgroundColor: AppColors.primary,
-              foregroundColor: AppColors.white,
-              child: const Icon(Icons.add),
+          ? _AnimatedSpeedDialFab(
+              onManualPressed: () => _openForm(),
+              onAiPressed: _openAiWizard,
             )
           : null,
       body: Consumer<JadwalProvider>(
@@ -932,17 +980,17 @@ class _JadwalScreenState extends State<JadwalScreen> {
 
 // --- SUB-WIDGETS (Sesuai Style Utama Anda) ---
 
-class _InventarisPickerSheet extends StatefulWidget {
+class InventarisPickerSheet extends StatefulWidget {
   final List<Map<String, dynamic>> inventarisList;
   final Function(Map<String, dynamic>) onSelected;
-  const _InventarisPickerSheet(
-      {required this.inventarisList, required this.onSelected});
+  const InventarisPickerSheet(
+      {required this.inventarisList, required this.onSelected, super.key});
 
   @override
-  State<_InventarisPickerSheet> createState() => _InventarisPickerSheetState();
+  State<InventarisPickerSheet> createState() => _InventarisPickerSheetState();
 }
 
-class _InventarisPickerSheetState extends State<_InventarisPickerSheet> {
+class _InventarisPickerSheetState extends State<InventarisPickerSheet> {
   late final TextEditingController _searchCtrl;
   late final FocusNode _focusNode;
   late final DraggableScrollableController _sheetController;
@@ -1036,7 +1084,7 @@ class _InventarisPickerSheetState extends State<_InventarisPickerSheet> {
                   const Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      'Pilih unit yang akan diperiksa',
+                      'pilih unit untuk realisasi',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
@@ -1291,7 +1339,7 @@ class _JadwalCard extends StatelessWidget {
     
     if (j.jdwDaysRemaining != null) return j.jdwDaysRemaining!;
     
-    final fallbackDate = DateTime.tryParse(j.jdwNextDueDate ?? j.jdwTglMulai);
+    final fallbackDate = DateTime.tryParse(j.effectiveNextDueDateStr ?? j.jdwTglMulai);
     if (fallbackDate == null) return 0;
     
     return fallbackDate.difference(today).inDays;
@@ -2237,21 +2285,32 @@ class _JadwalFormState extends State<_JadwalForm> {
       }
     }
 
+    final mediaQuery = MediaQuery.of(context);
+    final bottomInset = mediaQuery.viewInsets.bottom;
+    final bottomPadding = mediaQuery.padding.bottom;
+
     return DraggableScrollableSheet(
       initialChildSize: 0.92,
       maxChildSize: 0.95,
       minChildSize: 0.5,
-      builder: (_, ctrl) => Container(
-        decoration: const BoxDecoration(
-          color: _kPageBg,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Form(
-          key: _form,
-          child: ListView(
-            controller: ctrl,
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
-            children: [
+      builder: (_, ctrl) => AnimatedPadding(
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOut,
+        padding: EdgeInsets.only(bottom: bottomInset),
+        child: Container(
+          decoration: const BoxDecoration(
+            color: _kPageBg,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Form(
+            key: _form,
+            child: ListView(
+              controller: ctrl,
+              keyboardDismissBehavior:
+                  ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: EdgeInsets.fromLTRB(
+                  20, 8, 20, 40 + (bottomInset > 0 ? 0 : bottomPadding)),
+              children: [
               Center(
                   child: Container(
                 margin: const EdgeInsets.only(top: 8, bottom: 16),
@@ -2694,8 +2753,10 @@ class _JadwalFormState extends State<_JadwalForm> {
           ),
         ),
       ),
+    ),
     );
   }
+
 }
 // ═══════════════════════════════════════════════════════════════
 //  RINGKASAN JADWAL WIDGET (Visual Preview Realtime)
@@ -2863,6 +2924,216 @@ class _SummaryWidget extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// --- ANIMATED SPEED DIAL FAB (Pilihan Manual & AI) ---
+class _AnimatedSpeedDialFab extends StatefulWidget {
+  final VoidCallback onManualPressed;
+  final VoidCallback onAiPressed;
+
+  const _AnimatedSpeedDialFab({
+    required this.onManualPressed,
+    required this.onAiPressed,
+  });
+
+  @override
+  State<_AnimatedSpeedDialFab> createState() => _AnimatedSpeedDialFabState();
+}
+
+class _AnimatedSpeedDialFabState extends State<_AnimatedSpeedDialFab>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _expandAnimation;
+  late final Animation<double> _rotationAnimation;
+  bool _isOpen = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      value: _isOpen ? 1.0 : 0.0,
+      duration: const Duration(milliseconds: 250),
+      vsync: this,
+    );
+    _expandAnimation = CurvedAnimation(
+      curve: Curves.easeOutBack,
+      reverseCurve: Curves.easeInCirc,
+      parent: _controller,
+    );
+    _rotationAnimation = Tween<double>(begin: 0.0, end: 0.125).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: Curves.easeInOut,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _toggle() {
+    setState(() {
+      _isOpen = !_isOpen;
+      if (_isOpen) {
+        _controller.forward();
+      } else {
+        _controller.reverse();
+      }
+    });
+  }
+
+  void _close() {
+    if (_isOpen) {
+      setState(() {
+        _isOpen = false;
+        _controller.reverse();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        // Opsi 1: Asisten AI
+        ScaleTransition(
+          scale: _expandAnimation,
+          alignment: Alignment.bottomRight,
+          child: FadeTransition(
+            opacity: _controller,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.15),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.auto_awesome, color: Colors.white, size: 14),
+                        SizedBox(width: 6),
+                        Text(
+                          'Bantuan AI',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  FloatingActionButton.small(
+                    heroTag: 'ai_option_fab',
+                    onPressed: () {
+                      _close();
+                      widget.onAiPressed();
+                    },
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    elevation: 4,
+                    child: const Icon(Icons.auto_awesome, size: 18),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+
+        // Opsi 2: Buat Manual
+        ScaleTransition(
+          scale: _expandAnimation,
+          alignment: Alignment.bottomRight,
+          child: FadeTransition(
+            opacity: _controller,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.12),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.edit_note_rounded,
+                            color: AppColors.textPrimary, size: 16),
+                        SizedBox(width: 6),
+                        Text(
+                          'Buat Manual',
+                          style: TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  FloatingActionButton.small(
+                    heroTag: 'manual_option_fab',
+                    onPressed: () {
+                      _close();
+                      widget.onManualPressed();
+                    },
+                    backgroundColor: Colors.white,
+                    foregroundColor: AppColors.primary,
+                    elevation: 4,
+                    child: const Icon(Icons.edit_note_rounded, size: 20),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+
+        // Main FAB (+)
+        FloatingActionButton(
+          heroTag: 'main_speed_dial_fab',
+          onPressed: _toggle,
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          elevation: 4,
+          child: RotationTransition(
+            turns: _rotationAnimation,
+            child: const Icon(Icons.add, size: 28),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -1235,6 +1235,9 @@ class _InventarisFormState extends State<_InventarisForm> {
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.item != null;
+    final auth = context.watch<AuthProvider>();
+    final role = (auth.user?['user_jabatan'] ?? '').toString().toLowerCase();
+    final isAdmin = role == 'admin';
     final master = context.watch<MasterProvider>();
     final pabrikCodes = master.pabrikList.map((e) => e.pabKode).toSet();
     final safePabrikKode =
@@ -1243,20 +1246,31 @@ class _InventarisFormState extends State<_InventarisForm> {
             : null;
     final safeKondisi =
         _kondisiList.contains(_kondisi) ? _kondisi : _kondisiList.first;
+    final mediaQuery = MediaQuery.of(context);
+    final bottomInset = mediaQuery.viewInsets.bottom;
+    final bottomPadding = mediaQuery.padding.bottom;
+
     return DraggableScrollableSheet(
       initialChildSize: 0.92,
       maxChildSize: 0.95,
       minChildSize: 0.5,
-      builder: (_, ctrl) => Container(
-        decoration: const BoxDecoration(
-          color: Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Form(
-          key: _form,
-          child: ListView(
+      builder: (_, ctrl) => AnimatedPadding(
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOut,
+        padding: EdgeInsets.only(bottom: bottomInset),
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Form(
+            key: _form,
+            child: ListView(
               controller: ctrl,
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+              keyboardDismissBehavior:
+                  ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: EdgeInsets.fromLTRB(
+                  20, 12, 20, 32 + (bottomInset > 0 ? 0 : bottomPadding)),
               children: [
                 Center(
                     child: Container(
@@ -1437,60 +1451,61 @@ class _InventarisFormState extends State<_InventarisForm> {
                 ),
                 const SizedBox(height: 14),
 
-                // Status Aktif Slider (Switch)
-                Container(
-                  margin: const EdgeInsets.only(bottom: 14),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                        color: AppColors.border.withValues(alpha: 0.8)),
+                // Status Aktif Slider (Hanya Admin yang berhak merubah status inventaris)
+                if (isAdmin)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                          color: AppColors.border.withValues(alpha: 0.8)),
+                    ),
+                    child: SwitchListTile(
+                      value: _isActive,
+                      activeColor: AppColors.primary,
+                      activeTrackColor: AppColors.primary.withValues(alpha: 0.2),
+                      inactiveThumbColor: AppColors.textSecondary,
+                      inactiveTrackColor: AppColors.border.withValues(alpha: 0.5),
+                      title: const Text(
+                        'Status',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      subtitle: Text(
+                        _isActive ? 'Inventaris aktif' : 'Inventaris tidak aktif',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: _isActive
+                              ? AppColors.success
+                              : AppColors.textSecondary,
+                        ),
+                      ),
+                      secondary: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: (_isActive
+                                  ? AppColors.primary
+                                  : AppColors.textSecondary)
+                              .withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          _isActive
+                              ? Icons.check_circle_outline_rounded
+                              : Icons.cancel_outlined,
+                          color: _isActive
+                              ? AppColors.primary
+                              : AppColors.textSecondary,
+                          size: 20,
+                        ),
+                      ),
+                      onChanged: (value) => setState(() => _isActive = value),
+                    ),
                   ),
-                  child: SwitchListTile(
-                    value: _isActive,
-                    activeColor: AppColors.primary,
-                    activeTrackColor: AppColors.primary.withValues(alpha: 0.2),
-                    inactiveThumbColor: AppColors.textSecondary,
-                    inactiveTrackColor: AppColors.border.withValues(alpha: 0.5),
-                    title: const Text(
-                      'Status',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    subtitle: Text(
-                      _isActive ? 'Inventaris aktif' : 'Inventaris tidak aktif',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: _isActive
-                            ? AppColors.success
-                            : AppColors.textSecondary,
-                      ),
-                    ),
-                    secondary: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: (_isActive
-                                ? AppColors.primary
-                                : AppColors.textSecondary)
-                            .withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(
-                        _isActive
-                            ? Icons.check_circle_outline_rounded
-                            : Icons.cancel_outlined,
-                        color: _isActive
-                            ? AppColors.primary
-                            : AppColors.textSecondary,
-                        size: 20,
-                      ),
-                    ),
-                    onChanged: (value) => setState(() => _isActive = value),
-                  ),
-                ),
 
                 _field(_notesCtrl, 'Catatan', Icons.notes_outlined,
                     maxLines: 3),
@@ -1525,6 +1540,7 @@ class _InventarisFormState extends State<_InventarisForm> {
               ]),
         ),
       ),
+    ),
     );
   }
 

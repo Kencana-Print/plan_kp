@@ -26,12 +26,12 @@ class ApiClient {
     return '$base.jpg';
   }
 
-  static Future<String?> _getToken() => _storage.read(key: StorageKeys.token);
+  static Future<String?> getToken() => _storage.read(key: StorageKeys.token);
 
   static Future<Map<String, String>> _headers({bool auth = true}) async {
     final headers = {'Content-Type': 'application/json'};
     if (auth) {
-      final token = await _getToken();
+      final token = await getToken();
       if (token != null) headers['Authorization'] = 'Bearer $token';
     }
     return headers;
@@ -105,7 +105,7 @@ class ApiClient {
     final uri = Uri.parse('${ApiConfig.baseUrl}$path');
     final request = http.MultipartRequest('POST', uri);
 
-    final token = await _getToken();
+    final token = await getToken();
     if (token != null) {
       request.headers['Authorization'] = 'Bearer $token';
     }

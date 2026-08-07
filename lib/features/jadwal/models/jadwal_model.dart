@@ -101,6 +101,85 @@ class JadwalModel {
 
   String get assignedNama => assignedUser?['user_nama'] ?? '-';
 
+  DateTime? get calculatedNextDueDate {
+    final start = DateTime.tryParse(jdwTglMulai);
+    if (start == null) return null;
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final startDateOnly = DateTime(start.year, start.month, start.day);
+
+    if (jdwFrekuensi == 'Harian') {
+      if (startDateOnly.isAfter(today)) return startDateOnly;
+      if (jdwPeriodFulfilled) {
+        return today.add(const Duration(days: 1));
+      }
+      return today;
+    } else if (jdwFrekuensi == 'Mingguan') {
+      final intervalDays = jdwGapHari > 0 ? jdwGapHari : 7;
+      if (startDateOnly.isAfter(today)) return startDateOnly;
+
+      var currentPeriodStart = startDateOnly;
+      while (currentPeriodStart.add(Duration(days: intervalDays)).isBefore(today) ||
+          currentPeriodStart.add(Duration(days: intervalDays)).isAtSameMomentAs(today)) {
+        currentPeriodStart = currentPeriodStart.add(Duration(days: intervalDays));
+      }
+
+      if (jdwPeriodFulfilled) {
+        return currentPeriodStart.add(Duration(days: intervalDays));
+      }
+      return currentPeriodStart.isBefore(today) ? today : currentPeriodStart;
+    } else if (jdwFrekuensi == 'Bulanan') {
+      final intervalDays = jdwGapHari > 0 ? jdwGapHari : 30;
+      if (startDateOnly.isAfter(today)) return startDateOnly;
+
+      if (jdwGapHari > 0) {
+        var currentPeriodStart = startDateOnly;
+        while (currentPeriodStart.add(Duration(days: intervalDays)).isBefore(today) ||
+            currentPeriodStart.add(Duration(days: intervalDays)).isAtSameMomentAs(today)) {
+          currentPeriodStart = currentPeriodStart.add(Duration(days: intervalDays));
+        }
+        if (jdwPeriodFulfilled) {
+          return currentPeriodStart.add(Duration(days: intervalDays));
+        }
+        return currentPeriodStart.isBefore(today) ? today : currentPeriodStart;
+      } else {
+        var currentPeriodStart = startDateOnly;
+        while (true) {
+          final nextMonth = DateTime(currentPeriodStart.year, currentPeriodStart.month + 1, currentPeriodStart.day);
+          if (nextMonth.isAfter(today)) break;
+          currentPeriodStart = nextMonth;
+        }
+        if (jdwPeriodFulfilled) {
+          return DateTime(currentPeriodStart.year, currentPeriodStart.month + 1, currentPeriodStart.day);
+        }
+        return currentPeriodStart.isBefore(today) ? today : currentPeriodStart;
+      }
+    }
+
+    return startDateOnly;
+  }
+
+  String? get effectiveNextDueDateStr {
+    final calc = calculatedNextDueDate;
+    if (calc != null) {
+      final calcStr = '${calc.year}-${calc.month.toString().padLeft(2, '0')}-${calc.day.toString().padLeft(2, '0')}';
+      if (jdwNextDueDate != null && jdwNextDueDate!.trim().isNotEmpty) {
+        final backendParsed = DateTime.tryParse(jdwNextDueDate!);
+        if (backendParsed != null) {
+          final backendDateOnly = DateTime(backendParsed.year, backendParsed.month, backendParsed.day);
+          final now = DateTime.now();
+          final today = DateTime(now.year, now.month, now.day);
+          if (!jdwPeriodFulfilled || backendDateOnly.isAfter(today)) {
+            return jdwNextDueDate;
+          }
+        }
+      }
+      return calcStr;
+    }
+    return jdwNextDueDate ?? jdwTglMulai;
+  }
+
   static List<String> _parsePabrikList(dynamic value) {
     if (value == null) return const [];
     if (value is List) {

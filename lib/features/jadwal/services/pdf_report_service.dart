@@ -6,6 +6,28 @@ import 'package:intl/intl.dart';
 import '../models/jadwal_model.dart';
 import '../models/realisasi_model.dart';
 
+// ─── Warna korporat ────────────────────────────────────────────────────────
+class _C {
+  static const primary    = PdfColor.fromInt(0xFF0D3B6E);
+  static const accent     = PdfColor.fromInt(0xFF1976D2);
+  static const accentBg   = PdfColor.fromInt(0xFFE3F2FD);
+  static const good       = PdfColor.fromInt(0xFF1B5E20);
+  static const goodBg     = PdfColor.fromInt(0xFFE8F5E9);
+  static const warn       = PdfColor.fromInt(0xFFE65100);
+  static const warnBg     = PdfColor.fromInt(0xFFFFF3E0);
+  static const bad        = PdfColor.fromInt(0xFFB71C1C);
+  static const badBg      = PdfColor.fromInt(0xFFFFEBEE);
+  static const textDark   = PdfColor.fromInt(0xFF212121);
+  static const textMid    = PdfColor.fromInt(0xFF616161);
+  static const textLight  = PdfColor.fromInt(0xFF9E9E9E);
+  static const borderLight= PdfColor.fromInt(0xFFE0E0E0);
+  static const bgAlt      = PdfColor.fromInt(0xFFF5F5F5);
+  static const white      = PdfColors.white;
+  static const amber      = PdfColor.fromInt(0xFFFF8F00);
+  static const amberBg    = PdfColor.fromInt(0xFFFFF8E1);
+}
+
+// ─── Service ────────────────────────────────────────────────────────────────
 class PdfReportService {
   static Future<Uint8List> generateRealisasiPdf({
     required String divisiFilter,
@@ -15,88 +37,101 @@ class PdfReportService {
     required List<RealisasiModel> realisasiList,
     required List<JadwalModel> jadwalList,
   }) async {
-    final pdf = pw.Document();
+    final pdf = pw.Document(
+      title: 'Laporan Realisasi Maintenance',
+      author: 'PlanKP | CV. Kencana Print',
+    );
 
-    // 1. Load Logo Image Asset
+    // Muat logo
     Uint8List? logoBytes;
     try {
-      final logoData = await rootBundle.load('assets/images/logo.png');
-      logoBytes = logoData.buffer.asUint8List();
+      final d = await rootBundle.load('assets/images/logo.png');
+      logoBytes = d.buffer.asUint8List();
     } catch (_) {}
-
     final logoImage = logoBytes != null ? pw.MemoryImage(logoBytes) : null;
 
     final selectedPelaksana = (pelaksanaFilter ?? 'Semua Pelaksana').trim();
 
-    // 2. Filter Realisasi berdasarkan status 'Selesai', bulan, tahun, divisi, & pelaksana
+    // ── Filter realisasi ─────────────────────────────────────────────────────
     final filteredRealisasi = realisasiList.where((r) {
-      if (r.realStatus != 'Selesai') return false;
       final tgl = DateTime.tryParse(r.realTgl);
-      if (tgl == null) return false;
-      if (tgl.year != year || tgl.month != month) return false;
+      if (tgl == null || tgl.year != year || tgl.month != month) return false;
 
-      // Filter Divisi
       if (divisiFilter != 'Semua Divisi') {
-        final jdwDiv =
-            (r.jadwal?['jdw_divisi'] ?? '').toString().trim().toUpperCase();
-        final filterDiv = divisiFilter.trim().toUpperCase();
-        if (jdwDiv.isNotEmpty && jdwDiv != filterDiv) return false;
+        final jdwDiv = (r.jadwal?['jdw_divisi'] ?? '').toString().trim().toUpperCase();
+        if (jdwDiv.isNotEmpty && jdwDiv != divisiFilter.trim().toUpperCase()) return false;
       }
 
-      // Filter Pelaksana
       if (selectedPelaksana != 'Semua Pelaksana' && selectedPelaksana.isNotEmpty) {
-        final teknisiNama = (r.teknisi?['user_nama'] ?? r.realTtdPicNama ?? '')
-            .toString()
-            .trim()
-            .toLowerCase();
-        final targetNama = selectedPelaksana.toLowerCase();
-        if (!teknisiNama.contains(targetNama)) return false;
+        final nama = (r.teknisi?['user_nama'] ?? r.realTtdPicNama ?? '')
+            .toString().trim().toLowerCase();
+        if (!nama.contains(selectedPelaksana.toLowerCase())) return false;
       }
 
       return true;
-    }).toList();
+    }).toList()
+      ..sort((a, b) => b.realTgl.compareTo(a.realTgl));
 
-    // Sortir urut tanggal realisasi terbaru
-    filteredRealisasi.sort((a, b) => b.realTgl.compareTo(a.realTgl));
+    // ── Hitung statistik target (selaras dengan rumus sistem) ────────────────
+    int totalTargetUnit = 0;
+    final monthStart = DateTime(year, month, 1);
+    final monthEnd = DateTime(year, month + 1, 0);
 
-    // Filter Jadwal untuk menghitung Total Target Unit
-    final filteredJadwal = jadwalList.where((j) {
+    final realisasiJadwalIds = filteredRealisasi.map((r) => r.realJadwalId).toSet();
+
+    for (final j in jadwalList) {
+      if (j.jdwStatus != 'Draft') continue;
+
       if (divisiFilter != 'Semua Divisi') {
-        if (j.jdwDivisi.trim().toUpperCase() !=
-            divisiFilter.trim().toUpperCase()) {
-          return false;
+        if (j.jdwDivisi.trim().toUpperCase() != divisiFilter.trim().toUpperCase()) {
+          continue;
         }
       }
-      return true;
-    }).toList();
 
-    // 3. Agregasi Statistik & Metrik
-    int totalTargetUnit = 0;
-    for (final j in filteredJadwal) {
-      totalTargetUnit += (j.jdwTarget ?? j.jdwTotalUnit ?? 1);
+      // Filter Rentang Keaktifan Jadwal (jdwTglMulai & jdwTglSelesai) terhadap bulan laporan
+      final tglMulai = DateTime.tryParse(j.jdwTglMulai);
+      if (tglMulai != null && tglMulai.isAfter(monthEnd)) {
+        continue; // Belum berjalan di bulan ini
+      }
+      if (j.jdwTglSelesai != null && j.jdwTglSelesai!.isNotEmpty) {
+        final tglSelesai = DateTime.tryParse(j.jdwTglSelesai!);
+        if (tglSelesai != null && tglSelesai.isBefore(monthStart)) {
+          continue; // Sudah selesai sebelum bulan ini
+        }
+      }
+
+      // Filter Pelaksana jika spesifik dipilih
+      if (selectedPelaksana != 'Semua Pelaksana' && selectedPelaksana.isNotEmpty) {
+        final assignedNama = (j.assignedUser?['user_nama'] ?? '').toString().trim().toLowerCase();
+        final matchAssigned = assignedNama.isNotEmpty && assignedNama.contains(selectedPelaksana.toLowerCase());
+        final matchRealisasi = realisasiJadwalIds.contains(j.jdwId);
+
+        if (!matchAssigned && !matchRealisasi) {
+          continue;
+        }
+      }
+
+      final perTarget = (j.jdwTarget ?? 0) > 0
+          ? (j.jdwTarget ?? 0)
+          : ((j.jdwTotalUnit ?? 0) > 0 ? (j.jdwTotalUnit ?? 0) : 1);
+      final appearances = _calculateScheduleAppearancesInMonth(j, monthStart, monthEnd);
+
+      totalTargetUnit += (appearances * perTarget);
     }
 
     final totalRealisasi = filteredRealisasi.length;
-    final targetVal = totalTargetUnit > 0
-        ? totalTargetUnit
-        : (totalRealisasi > 0 ? totalRealisasi : 1);
-    final percentage =
-        ((totalRealisasi / targetVal) * 100).round().clamp(0, 100);
+    final targetVal = totalTargetUnit > 0 ? totalTargetUnit : (totalRealisasi > 0 ? totalRealisasi : 1);
+    final percentage = ((totalRealisasi / targetVal) * 100).round().clamp(0, 100);
 
-    // Breakdown Kondisi Inventaris
-    int countBaik = 0;
-    int countPerluCek = 0;
-    int countRusak = 0;
-    final List<RealisasiModel> temuanList = [];
+    int countBaik = 0, countPerluCek = 0, countRusak = 0;
+    final temuanList = <RealisasiModel>[];
 
     for (final r in filteredRealisasi) {
-      final kondisi = (r.realKondisiAkhir ?? 'Baik').trim().toLowerCase();
-      if (kondisi == 'rusak') {
+      final k = (r.realKondisiAkhir ?? 'Baik').trim().toLowerCase();
+      if (k == 'rusak') {
         countRusak++;
         temuanList.add(r);
-      } else if (kondisi.contains('perhatian') ||
-          kondisi.contains('cek') ||
-          kondisi.contains('perlu')) {
+      } else if (k.contains('perhatian') || k.contains('cek') || k.contains('perlu')) {
         countPerluCek++;
         temuanList.add(r);
       } else {
@@ -104,79 +139,168 @@ class PdfReportService {
       }
     }
 
-    final monthNames = [
-      'Januari',
-      'Februari',
-      'Maret',
-      'April',
-      'Mei',
-      'Juni',
-      'Juli',
-      'Agustus',
-      'September',
-      'Oktober',
-      'November',
-      'Desember'
-    ];
-    final periodeStr = '${monthNames[month - 1]} $year';
-    final printDateTimeStr = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
+    // ── String meta ──────────────────────────────────────────────────────────
+    final periodeStr   = '${_bulan(month)} $year';
+    final printStr     = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
+    final pctColor     = percentage >= 80 ? _C.good : (percentage >= 50 ? _C.warn : _C.bad);
+    final pctBg        = percentage >= 80 ? _C.goodBg : (percentage >= 50 ? _C.warnBg : _C.badBg);
 
-    // 4. Build PDF Pages
+    // ════════════════════════════════════════════════════════════════════════
+    //  SATU HALAMAN A4
+    // ════════════════════════════════════════════════════════════════════════
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.symmetric(horizontal: 28, vertical: 24),
-        header: (context) => _buildHeaderWithKop(
+        margin: const pw.EdgeInsets.fromLTRB(28, 20, 28, 20),
+        header: (_) => _header(
           logoImage: logoImage,
+          periodeStr: periodeStr,
           divisiFilter: divisiFilter,
           pelaksanaFilter: selectedPelaksana,
-          periodeStr: periodeStr,
-          printDateTimeStr: printDateTimeStr,
+          printStr: printStr,
         ),
-        footer: (context) => _buildFooter(context),
-        build: (context) => [
-          pw.SizedBox(height: 10),
+        footer: (ctx) => _footer(ctx),
+        build: (_) => [
+          pw.SizedBox(height: 8),
 
-          // ── 1. RINGKASAN METRIK & CAPAIAN (%) ──────────────────
-          _buildSummarySection(
-            percentage: percentage,
-            totalRealisasi: totalRealisasi,
-            totalTarget: targetVal,
-            countBaik: countBaik,
-            countPerluCek: countPerluCek,
-            countRusak: countRusak,
+          // ── RINGKASAN ─────────────────────────────────────────────────────
+          pw.Container(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: pw.BoxDecoration(
+              color: _C.bgAlt,
+              border: pw.Border.all(color: _C.borderLight, width: 0.7),
+              borderRadius: pw.BorderRadius.circular(5),
+            ),
+            child: pw.Row(
+              children: [
+                // Persentase
+                pw.Container(
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: pw.BoxDecoration(
+                    color: pctBg,
+                    border: pw.Border.all(color: pctColor, width: 0.7),
+                    borderRadius: pw.BorderRadius.circular(5),
+                  ),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.center,
+                    children: [
+                      pw.Text('$percentage%',
+                          style: pw.TextStyle(
+                              fontSize: 22, fontWeight: pw.FontWeight.bold, color: pctColor)),
+                      pw.Text('Capaian',
+                          style: pw.TextStyle(fontSize: 6.5, color: pctColor)),
+                    ],
+                  ),
+                ),
+                pw.SizedBox(width: 10),
+
+                // Teks ringkas
+                pw.Expanded(
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        'Realisasi: $totalRealisasi Unit  |  Target: $targetVal Unit',
+                        style: pw.TextStyle(
+                            fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: _C.textDark),
+                      ),
+                      pw.SizedBox(height: 3),
+                      pw.Text(
+                        'Divisi: $divisiFilter  |  Periode: $periodeStr',
+                        style: const pw.TextStyle(fontSize: 7.5, color: _C.textMid),
+                      ),
+                    ],
+                  ),
+                ),
+
+                pw.SizedBox(width: 8),
+
+                // 3 pill kondisi
+                _pill('Baik', countBaik, _C.good, _C.goodBg),
+                pw.SizedBox(width: 5),
+                _pill('Perlu Cek', countPerluCek, _C.warn, _C.warnBg),
+                pw.SizedBox(width: 5),
+                _pill('Rusak', countRusak, _C.bad, _C.badBg),
+              ],
+            ),
           ),
-          pw.SizedBox(height: 12),
 
-          // ── 2. SEKSI TEMUAN KHUSUS (RUSAK / PERLU PERHATIAN) ────
+          pw.SizedBox(height: 8),
+
+          // ── TEMUAN (hanya jika ada) ───────────────────────────────────────
           if (temuanList.isNotEmpty) ...[
-            _buildTemuanSection(temuanList),
-            pw.SizedBox(height: 12),
+            _sectionLabel('Temuan Unit Perlu Tindak Lanjut'),
+            pw.SizedBox(height: 4),
+            pw.Container(
+              padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              decoration: pw.BoxDecoration(
+                color: _C.amberBg,
+                border: pw.Border.all(color: _C.amber, width: 0.6),
+                borderRadius: pw.BorderRadius.circular(4),
+              ),
+              child: pw.Column(
+                children: temuanList.take(5).toList().asMap().entries.map((e) {
+                  final r = e.value;
+                  final rawNamaInv = (r.inventaris?['inv_nama'] ?? 'Inv #${r.realInvId}').toString().trim();
+                  final jenisNama = (r.inventaris?['jenis']?['jenis_nama'] ?? r.inventaris?['inv_jenis']?['jenis_nama'] ?? '').toString().trim();
+                  String invNama = rawNamaInv;
+                  if (jenisNama.isNotEmpty && rawNamaInv.isNotEmpty) {
+                    if (!rawNamaInv.toLowerCase().startsWith(jenisNama.toLowerCase())) {
+                      invNama = '$jenisNama $rawNamaInv';
+                    }
+                  } else if (jenisNama.isNotEmpty) {
+                    invNama = jenisNama;
+                  }
+
+                  final kode = (r.inventaris?['inv_pabrik_kode'] ?? '-').toString();
+                  final kondisi = r.realKondisiAkhir ?? 'Perlu Perhatian';
+                  final catatan = (r.realKeterangan ?? '-').trim();
+                  final k = kondisi.trim().toLowerCase();
+                  final colorKondisi = k == 'baik'
+                      ? _C.good
+                      : (k == 'rusak' ? _C.bad : _C.warn);
+
+                  return pw.Padding(
+                    padding: const pw.EdgeInsets.only(bottom: 2),
+                    child: pw.Row(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text('${e.key + 1}. ',
+                            style: pw.TextStyle(
+                                fontSize: 7.5,
+                                fontWeight: pw.FontWeight.bold,
+                                color: _C.amber)),
+                        pw.Expanded(
+                          child: pw.RichText(
+                            text: pw.TextSpan(
+                              style: const pw.TextStyle(fontSize: 7.5, color: _C.textDark),
+                              children: [
+                                pw.TextSpan(text: '$invNama ($kode) ',
+                                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                                pw.TextSpan(
+                                    text: '[$kondisi] ',
+                                    style: pw.TextStyle(
+                                        fontWeight: pw.FontWeight.bold,
+                                        color: colorKondisi)),
+                                pw.TextSpan(text: catatan),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            pw.SizedBox(height: 8),
           ],
 
-          // ── 3. TABEL DETAIL REALISASI MAINTENANCE ──────────────
-          pw.Row(
-            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-            children: [
-              pw.Text(
-                'Detail Hasil Pemeliharaan Maintenance',
-                style: const pw.TextStyle(
-                  fontSize: 10.5,
-                  fontWeight: pw.FontWeight.bold,
-                  color: PdfColors.blueGrey900,
-                ),
-              ),
-              pw.Text(
-                'Total: $totalRealisasi Data',
-                style: const pw.TextStyle(
-                  fontSize: 9,
-                  color: PdfColors.grey700,
-                ),
-              ),
-            ],
-          ),
-          pw.SizedBox(height: 5),
-          _buildDetailTable(filteredRealisasi),
+          // ── TABEL DETAIL ──────────────────────────────────────────────────
+          _sectionLabel(
+              'Detail Hasil Pelaksanaan Maintenance  (${filteredRealisasi.length} Data)'),
+          pw.SizedBox(height: 4),
+          _detailTable(filteredRealisasi),
         ],
       ),
     );
@@ -184,402 +308,333 @@ class PdfReportService {
     return pdf.save();
   }
 
-  // ── HEADER KOP SURAT & TANGGAL CETAK KANAN ATAS ────────────────────
-  static pw.Widget _buildHeaderWithKop({
+  // ── HEADER ──────────────────────────────────────────────────────────────
+  static pw.Widget _header({
     pw.MemoryImage? logoImage,
+    required String periodeStr,
     required String divisiFilter,
     required String pelaksanaFilter,
-    required String periodeStr,
-    required String printDateTimeStr,
+    required String printStr,
   }) {
     return pw.Column(
       children: [
         pw.Row(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: pw.CrossAxisAlignment.center,
           children: [
-            // Kiri: Logo & Nama Perusahaan
-            pw.Row(
-              crossAxisAlignment: pw.CrossAxisAlignment.center,
-              children: [
-                if (logoImage != null)
-                  pw.Container(
-                    width: 50,
-                    height: 50,
-                    margin: const pw.EdgeInsets.only(right: 10),
-                    child: pw.Image(logoImage, fit: pw.BoxFit.contain),
-                  ),
-                pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Text(
-                      'PT. KENCANA PRINT',
-                      style: const pw.TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: pw.FontWeight.bold,
-                        color: PdfColors.blue900,
-                      ),
-                    ),
-                    pw.SizedBox(height: 1),
-                    pw.Text(
-                      'Sistem Penjadwalan & Maintenance (PlanKP)',
-                      style: const pw.TextStyle(
-                        fontSize: 8.5,
-                        color: PdfColors.grey700,
-                      ),
-                    ),
-                    pw.SizedBox(height: 2),
-                    pw.Text(
-                      'LAPORAN HASIL REALISASI MAINTENANCE',
-                      style: const pw.TextStyle(
-                        fontSize: 10,
-                        fontWeight: pw.FontWeight.bold,
-                        color: PdfColors.black,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-
-            // Kanan Atas: Tanggal Cetak & Info Meta Kanan
-            pw.Container(
-              padding:
-                  const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: pw.BoxDecoration(
-                color: PdfColors.blue50,
-                borderRadius: pw.BorderRadius.circular(6),
-                border: pw.Border.all(color: PdfColors.blue200, width: 0.8),
+            // Logo
+            if (logoImage != null)
+              pw.Container(
+                width: 44, height: 44,
+                margin: const pw.EdgeInsets.only(right: 8),
+                child: pw.Image(logoImage, fit: pw.BoxFit.contain),
               ),
+
+            // Nama & judul
+            pw.Expanded(
               child: pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.end,
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  _headerMetaRow('PERIODE', periodeStr),
-                  pw.SizedBox(height: 2),
-                  _headerMetaRow('TGL CETAK', printDateTimeStr),
-                  pw.SizedBox(height: 2),
-                  _headerMetaRow('DIVISI', divisiFilter),
-                  if (pelaksanaFilter != 'Semua Pelaksana') ...[
-                    pw.SizedBox(height: 2),
-                    _headerMetaRow('PELAKSANA', pelaksanaFilter),
-                  ],
+                  pw.Text('CV. KENCANA PRINT',
+                      style: pw.TextStyle(
+                          fontSize: 12, fontWeight: pw.FontWeight.bold, color: _C.primary)),
+                  pw.Text('Aplikasi Mobile PlanKP | Sistem Penjadwalan Maintenance Kencana Print',
+                      style: const pw.TextStyle(fontSize: 7.5, color: _C.textMid)),
+                  pw.Text('LAPORAN HASIL REALISASI MAINTENANCE',
+                      style: pw.TextStyle(
+                          fontSize: 9, fontWeight: pw.FontWeight.bold, color: _C.textDark)),
                 ],
               ),
+            ),
+
+            // Tanggal & Jam Cetak di Kanan
+            pw.Text(
+              'Dicetak: $printStr',
+              style: const pw.TextStyle(fontSize: 7.5, color: _C.textMid),
             ),
           ],
         ),
-        pw.SizedBox(height: 6),
-        pw.Container(height: 1.5, color: PdfColors.blue900),
-        pw.SizedBox(height: 4),
+        pw.SizedBox(height: 5),
+        pw.Container(height: 1.5, color: _C.primary),
+        pw.SizedBox(height: 3),
       ],
     );
   }
 
-  static pw.Widget _headerMetaRow(String label, String value) {
-    return pw.Row(
-      mainAxisSize: pw.MainAxisSize.min,
-      children: [
-        pw.Text(
-          '$label: ',
-          style: const pw.TextStyle(
-            fontSize: 7.5,
-            fontWeight: pw.FontWeight.bold,
-            color: PdfColors.blueGrey800,
-          ),
+  // ── FOOTER ──────────────────────────────────────────────────────────────
+  static pw.Widget _footer(pw.Context ctx) => pw.Container(
+        margin: const pw.EdgeInsets.only(top: 5),
+        padding: const pw.EdgeInsets.only(top: 4),
+        decoration: const pw.BoxDecoration(
+          border: pw.Border(top: pw.BorderSide(color: _C.borderLight, width: 0.5)),
         ),
-        pw.Text(
-          value,
-          style: const pw.TextStyle(
-            fontSize: 7.5,
-            color: PdfColors.black,
-          ),
+        child: pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Text('CV. Kencana Print | Aplikasi Mobile PlanKP',
+                style: const pw.TextStyle(fontSize: 6.5, color: _C.textLight)),
+            pw.Text('Halaman ${ctx.pageNumber} dari ${ctx.pagesCount}',
+                style: pw.TextStyle(
+                    fontSize: 7, fontWeight: pw.FontWeight.bold, color: _C.primary)),
+          ],
         ),
-      ],
-    );
-  }
+      );
 
-  // ── METRIK RINGKASAN KINERJA & CAPAIAN (%) ─────────────────────────
-  static pw.Widget _buildSummarySection({
-    required int percentage,
-    required int totalRealisasi,
-    required int totalTarget,
-    required int countBaik,
-    required int countPerluCek,
-    required int countRusak,
-  }) {
-    final pctColor = percentage >= 80
-        ? PdfColors.green800
-        : (percentage >= 50 ? PdfColors.orange800 : PdfColors.red800);
+  // ── PILL KONDISI ─────────────────────────────────────────────────────────
+  static pw.Widget _pill(String label, int val, PdfColor color, PdfColor bg) =>
+      pw.Container(
+        padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: pw.BoxDecoration(
+          color: bg,
+          border: pw.Border.all(color: color, width: 0.5),
+          borderRadius: pw.BorderRadius.circular(4),
+        ),
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.center,
+          children: [
+            pw.Text('$val',
+                style: pw.TextStyle(
+                    fontSize: 11, fontWeight: pw.FontWeight.bold, color: color)),
+            pw.Text(label, style: pw.TextStyle(fontSize: 6.5, color: color)),
+          ],
+        ),
+      );
 
-    return pw.Container(
-      padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: pw.BoxDecoration(
-        color: PdfColors.grey100,
-        borderRadius: pw.BorderRadius.circular(6),
-        border: pw.Border.all(color: PdfColors.grey300, width: 0.8),
-      ),
-      child: pw.Row(
-        children: [
-          // Capaian Persentase Box
-          pw.Expanded(
-            flex: 2,
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Text(
-                  'Capaian Realisasi Maintenance',
-                  style: const pw.TextStyle(
-                      fontSize: 8, color: PdfColors.grey700),
-                ),
-                pw.SizedBox(height: 2),
-                pw.Row(
-                  children: [
-                    pw.Text(
-                      '$percentage%',
-                      style: pw.TextStyle(
-                        fontSize: 16,
-                        fontWeight: pw.FontWeight.bold,
-                        color: pctColor,
-                      ),
-                    ),
-                    pw.SizedBox(width: 6),
-                    pw.Text(
-                      '($totalRealisasi dari $totalTarget unit target)',
-                      style: const pw.TextStyle(
-                        fontSize: 8.5,
-                        color: PdfColors.black,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          pw.Container(height: 26, width: 1, color: PdfColors.grey300),
-          pw.SizedBox(width: 10),
-          // Breakdown Kondisi Unit
-          pw.Expanded(
-            flex: 3,
-            child: pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
-              children: [
-                _metricPill(
-                    'Baik', countBaik, PdfColors.green800, PdfColors.green50),
-                _metricPill('Perlu Cek', countPerluCek, PdfColors.orange800,
-                    PdfColors.orange50),
-                _metricPill(
-                    'Rusak', countRusak, PdfColors.red800, PdfColors.red50),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // ── LABEL SEKSI ──────────────────────────────────────────────────────────
+  static pw.Widget _sectionLabel(String text) => pw.Text(
+        text,
+        style: pw.TextStyle(
+            fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: _C.primary),
+      );
 
-  static pw.Widget _metricPill(
-      String label, int val, PdfColor textColor, PdfColor bgColor) {
-    return pw.Container(
-      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: pw.BoxDecoration(
-        color: bgColor,
-        borderRadius: pw.BorderRadius.circular(4),
-        border: pw.Border.all(color: textColor, width: 0.5),
-      ),
-      child: pw.Column(
-        children: [
-          pw.Text(
-            '$val Unit',
-            style: pw.TextStyle(
-              fontSize: 9.5,
-              fontWeight: pw.FontWeight.bold,
-              color: textColor,
-            ),
-          ),
-          pw.Text(
-            label,
-            style: pw.TextStyle(fontSize: 7, color: textColor),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── SEKSI TEMUAN KHUSUS (RUSAK / PERLU PERHATIAN) ─────────────────
-  static pw.Widget _buildTemuanSection(List<RealisasiModel> temuanList) {
-    return pw.Container(
-      padding: const pw.EdgeInsets.all(8),
-      decoration: pw.BoxDecoration(
-        color: PdfColors.amber50,
-        borderRadius: pw.BorderRadius.circular(6),
-        border: pw.Border.all(color: PdfColors.amber400, width: 0.8),
-      ),
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Text(
-            '⚠️ TEMUAN UNIT PERLU PERHATIAN / REPARASI (${temuanList.length} Unit)',
-            style: const pw.TextStyle(
-              fontSize: 8.5,
-              fontWeight: pw.FontWeight.bold,
-              color: PdfColors.amber900,
-            ),
-          ),
-          pw.SizedBox(height: 4),
-          ...temuanList.take(6).map((r) {
-            final invNama =
-                (r.inventaris?['inv_nama'] ?? 'Inventaris #${r.realInvId}')
-                    .toString();
-            final pabrik = (r.inventaris?['inv_pabrik_kode'] ?? '-').toString();
-            final kondisi = r.realKondisiAkhir ?? 'Perlu Perhatian';
-            final catatan = (r.realKeterangan ?? 'Tidak ada catatan').trim();
-
-            return pw.Padding(
-              padding: const pw.EdgeInsets.only(bottom: 2.5),
-              child: pw.Row(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Text('• ',
-                      style: const pw.TextStyle(
-                          fontWeight: pw.FontWeight.bold,
-                          color: PdfColors.amber900)),
-                  pw.Expanded(
-                    child: pw.RichText(
-                      text: pw.TextSpan(
-                        style: const pw.TextStyle(
-                            fontSize: 8, color: PdfColors.black),
-                        children: [
-                          pw.TextSpan(
-                            text: '$invNama (Lokasi: $pabrik) - ',
-                            style: const pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                          ),
-                          pw.TextSpan(
-                            text: 'Kondisi: $kondisi. ',
-                            style: pw.TextStyle(
-                              fontWeight: pw.FontWeight.bold,
-                              color: kondisi.toLowerCase() == 'rusak'
-                                  ? PdfColors.red800
-                                  : PdfColors.orange800,
-                            ),
-                          ),
-                          pw.TextSpan(text: 'Catatan: $catatan'),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
-        ],
-      ),
-    );
-  }
-
-  // ── TABEL DETAIL REALISASI ────────────────────────────────────────
-  static pw.Widget _buildDetailTable(List<RealisasiModel> list) {
+  // ── TABEL DETAIL ─────────────────────────────────────────────────────────
+  static pw.Widget _detailTable(List<RealisasiModel> list) {
     if (list.isEmpty) {
-      return pw.Padding(
-        padding: const pw.EdgeInsets.symmetric(vertical: 20),
+      return pw.Container(
+        padding: const pw.EdgeInsets.symmetric(vertical: 18),
+        decoration: pw.BoxDecoration(
+            border: pw.Border.all(color: _C.borderLight),
+            borderRadius: pw.BorderRadius.circular(4)),
         child: pw.Center(
           child: pw.Text(
             'Tidak ada data realisasi selesai untuk kriteria filter ini.',
-            style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
+            style: const pw.TextStyle(fontSize: 8, color: _C.textMid),
           ),
         ),
       );
     }
 
-    final headers = [
-      'No',
-      'Tgl Realisasi',
-      'Nama Inventaris',
-      'Lokasi',
-      'Kondisi',
-      'Pelaksana',
-      'Catatan / Hasil Checklist'
+    const headers = [
+      'No', 'Tgl Realisasi', 'Nama Inventaris', 'Lokasi',
+      'Kondisi', 'Pelaksana', 'Catatan',
     ];
 
-    final data = List.generate(list.length, (i) {
-      final r = list[i];
-      final tglStr = r.realTgl.isNotEmpty
-          ? DateFormat('dd/MM/yyyy')
-              .format(DateTime.tryParse(r.realTgl) ?? DateTime.now())
-          : '-';
-      final invNama =
-          (r.inventaris?['inv_nama'] ?? 'Inv #${r.realInvId}').toString();
-      final pabrik = (r.inventaris?['inv_pabrik_kode'] ?? '-').toString();
-      final kondisi = r.realKondisiAkhir ?? 'Baik';
-      final teknisi =
-          (r.teknisi?['user_nama'] ?? r.realTtdPicNama ?? 'Teknisi').toString();
-      final catatan = (r.realKeterangan ?? '-').trim();
-
-      return [
-        '${i + 1}',
-        tglStr,
-        invNama,
-        pabrik,
-        kondisi,
-        teknisi,
-        catatan.isEmpty ? '-' : catatan,
-      ];
-    });
-
-    return pw.TableHelper.fromTextArray(
-      headers: headers,
-      data: data,
-      border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
-      headerStyle: const pw.TextStyle(
-        fontSize: 8,
-        fontWeight: pw.FontWeight.bold,
-        color: PdfColors.white,
-      ),
-      headerDecoration: const pw.BoxDecoration(color: PdfColors.blue900),
-      cellStyle: const pw.TextStyle(fontSize: 7.5, color: PdfColors.black),
-      cellHeight: 18,
-      rowDecoration: const pw.BoxDecoration(color: PdfColors.white),
-      oddRowDecoration: const pw.BoxDecoration(color: PdfColors.grey50),
-      columnWidths: {
-        0: const pw.FixedColumnWidth(22), // No
-        1: const pw.FixedColumnWidth(55), // Tgl
-        2: const pw.FlexColumnWidth(2.6), // Inventaris
-        3: const pw.FixedColumnWidth(42), // Lokasi
-        4: const pw.FixedColumnWidth(55), // Kondisi
-        5: const pw.FlexColumnWidth(1.8), // Pelaksana
-        6: const pw.FlexColumnWidth(3.0), // Catatan
+    return pw.Table(
+      border: pw.TableBorder.all(color: _C.borderLight, width: 0.5),
+      columnWidths: const {
+        0: pw.FixedColumnWidth(18),   // No
+        1: pw.FixedColumnWidth(60),   // Tanggal
+        2: pw.FlexColumnWidth(2.0),   // Nama Inventaris
+        3: pw.FixedColumnWidth(36),   // Lokasi
+        4: pw.FixedColumnWidth(48),   // Kondisi
+        5: pw.FlexColumnWidth(1.4),   // Pelaksana
+        6: pw.FlexColumnWidth(4.5),   // Catatan (Ekstra Luas)
       },
-      cellAlignment: pw.Alignment.centerLeft,
-      cellAlignments: {
-        0: pw.Alignment.center,
-        1: pw.Alignment.center,
-        3: pw.Alignment.center,
-        4: pw.Alignment.center,
-      },
+      children: [
+        // Header Row
+        pw.TableRow(
+          decoration: const pw.BoxDecoration(color: _C.primary),
+          children: headers.map((h) {
+            return pw.Container(
+              padding: const pw.EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+              alignment: pw.Alignment.center,
+              child: pw.Text(
+                h,
+                style: pw.TextStyle(
+                  fontSize: 7.5,
+                  fontWeight: pw.FontWeight.bold,
+                  color: _C.white,
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+
+        // Data Rows
+        ...list.asMap().entries.map((entry) {
+          final i = entry.key;
+          final r = entry.value;
+          final tgl = r.realTgl.isNotEmpty
+              ? DateFormat('dd/MM/yyyy').format(DateTime.tryParse(r.realTgl) ?? DateTime.now())
+              : '-';
+
+          final rawNamaInv = (r.inventaris?['inv_nama'] ?? 'Inv #${r.realInvId}').toString().trim();
+          final jenisNama = (r.inventaris?['jenis']?['jenis_nama'] ?? r.inventaris?['inv_jenis']?['jenis_nama'] ?? '').toString().trim();
+          String invNama = rawNamaInv;
+          if (jenisNama.isNotEmpty && rawNamaInv.isNotEmpty) {
+            if (!rawNamaInv.toLowerCase().startsWith(jenisNama.toLowerCase())) {
+              invNama = '$jenisNama $rawNamaInv';
+            }
+          } else if (jenisNama.isNotEmpty) {
+            invNama = jenisNama;
+          }
+
+          final lokasi  = (r.inventaris?['inv_pabrik_kode'] ?? '-').toString();
+          final kondisi = r.realKondisiAkhir ?? 'Baik';
+          final teknisi = (r.teknisi?['user_nama'] ?? r.realTtdPicNama ?? '-').toString();
+          final catatan = (r.realKeterangan ?? '-').trim();
+
+          final k = kondisi.trim().toLowerCase();
+          PdfColor colorKondisi = _C.textDark;
+          if (k == 'baik') {
+            colorKondisi = _C.good;
+          } else if (k == 'rusak') {
+            colorKondisi = _C.bad;
+          } else if (k.contains('perhatian') || k.contains('cek') || k.contains('perlu')) {
+            colorKondisi = _C.warn;
+          }
+
+          final bg = i % 2 == 0 ? _C.white : _C.bgAlt;
+
+          return pw.TableRow(
+            decoration: pw.BoxDecoration(color: bg),
+            children: [
+              // 0. No
+              pw.Container(
+                padding: const pw.EdgeInsets.all(4),
+                alignment: pw.Alignment.center,
+                child: pw.Text('${i + 1}', style: const pw.TextStyle(fontSize: 7.5, color: _C.textDark)),
+              ),
+              // 1. Tanggal
+              pw.Container(
+                padding: const pw.EdgeInsets.all(4),
+                alignment: pw.Alignment.center,
+                child: pw.Text(tgl, style: const pw.TextStyle(fontSize: 7.5, color: _C.textDark)),
+              ),
+              // 2. Nama Inventaris
+              pw.Container(
+                padding: const pw.EdgeInsets.all(4),
+                alignment: pw.Alignment.centerLeft,
+                child: pw.Text(invNama, style: const pw.TextStyle(fontSize: 7.5, color: _C.textDark)),
+              ),
+              // 3. Lokasi
+              pw.Container(
+                padding: const pw.EdgeInsets.all(4),
+                alignment: pw.Alignment.center,
+                child: pw.Text(lokasi, style: const pw.TextStyle(fontSize: 7.5, color: _C.textDark)),
+              ),
+              // 4. Kondisi (BERWARNA sesuai kondisi: Baik = Hijau, Perlu Perhatian = Orange, Rusak = Merah)
+              pw.Container(
+                padding: const pw.EdgeInsets.all(4),
+                alignment: pw.Alignment.center,
+                child: pw.Text(
+                  kondisi,
+                  style: pw.TextStyle(
+                    fontSize: 7.5,
+                    fontWeight: pw.FontWeight.bold,
+                    color: colorKondisi,
+                  ),
+                ),
+              ),
+              // 5. Pelaksana
+              pw.Container(
+                padding: const pw.EdgeInsets.all(4),
+                alignment: pw.Alignment.centerLeft,
+                child: pw.Text(teknisi, style: const pw.TextStyle(fontSize: 7.5, color: _C.textDark)),
+              ),
+              // 6. Catatan
+              pw.Container(
+                padding: const pw.EdgeInsets.all(4),
+                alignment: pw.Alignment.centerLeft,
+                child: pw.Text(catatan.isEmpty ? '-' : catatan, style: const pw.TextStyle(fontSize: 7.5, color: _C.textDark)),
+              ),
+            ],
+          );
+        }),
+      ],
     );
   }
 
-  // ── FOOTER PAGE NUMBERING ──────────────────────────────────────────
-  static pw.Widget _buildFooter(pw.Context context) {
-    return pw.Container(
-      margin: const pw.EdgeInsets.only(top: 6),
-      padding: const pw.EdgeInsets.only(top: 4),
-      decoration: const pw.BoxDecoration(
-        border:
-            pw.Border(top: pw.BorderSide(color: PdfColors.grey300, width: 0.5)),
-      ),
-      child: pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-        children: [
-          pw.Text(
-            'Dokumen Resmi PlanKP System - PT. Kencana Print',
-            style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey600),
-          ),
-          pw.Text(
-            'Halaman ${context.pageNumber} dari ${context.pagesCount}',
-            style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey600),
-          ),
-        ],
-      ),
-    );
+  // ── HELPER ───────────────────────────────────────────────────────────────
+  static String _bulan(int m) {
+    const n = [
+      'Januari','Februari','Maret','April','Mei','Juni',
+      'Juli','Agustus','September','Oktober','November','Desember',
+    ];
+    return n[(m - 1).clamp(0, 11)];
+  }
+
+  static const List<String> _divisiSixDays = [
+    'GA',
+    'TEKNISI',
+    'MAINTENANCE',
+    'PRODUKSI',
+    'WORKSHOP'
+  ];
+
+  static bool _isWorkingDay(DateTime date, String? divisi) {
+    if (date.weekday == DateTime.sunday) return false;
+    if (date.weekday == DateTime.saturday) {
+      final norm = (divisi ?? '').trim().toUpperCase();
+      return _divisiSixDays.any((d) => d.toUpperCase() == norm);
+    }
+    return true;
+  }
+
+  static DateTime? _findNextWorkingDay(DateTime date, DateTime limit, String? divisi) {
+    var d = date;
+    while (!_isWorkingDay(d, divisi)) {
+      d = d.add(const Duration(days: 1));
+      if (d.isAfter(limit)) return null;
+    }
+    return d;
+  }
+
+  static int _calculateScheduleAppearancesInMonth(
+    JadwalModel j,
+    DateTime start,
+    DateTime end,
+  ) {
+    final jStart = DateTime.tryParse(j.jdwTglMulai);
+    if (jStart == null) return 1;
+    final rangeStart = jStart.isAfter(start) ? jStart : start;
+    final jEndStr = j.jdwTglSelesai;
+    final jEnd = (jEndStr == null || jEndStr.isEmpty)
+        ? end
+        : (DateTime.tryParse(jEndStr) ?? end);
+    final rangeEnd = jEnd.isBefore(end) ? jEnd : end;
+
+    if (rangeEnd.isBefore(rangeStart)) return 0;
+    int appearances = 0;
+    final divisi = j.jdwDivisi;
+    final frekuensi = j.jdwFrekuensi.trim().toLowerCase();
+
+    if (frekuensi == 'harian') {
+      for (var d = rangeStart;
+          !d.isAfter(rangeEnd);
+          d = d.add(const Duration(days: 1))) {
+        if (_isWorkingDay(d, divisi)) appearances++;
+      }
+      return appearances;
+    } else if (frekuensi == 'mingguan') {
+      var curr = jStart;
+      while (!curr.isAfter(rangeEnd)) {
+        if (!curr.isBefore(rangeStart)) {
+          final nextWork = _findNextWorkingDay(curr, rangeEnd, divisi);
+          if (nextWork != null) {
+            appearances++;
+          }
+        }
+        curr = curr.add(const Duration(days: 7));
+      }
+      return appearances;
+    } else if (frekuensi == 'bulanan') {
+      final nextWork = _findNextWorkingDay(rangeStart, rangeEnd, divisi);
+      if (nextWork != null) {
+        appearances = 1;
+      }
+      return appearances;
+    }
+
+    return 1;
   }
 }

@@ -71,12 +71,13 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
       }
     } else if (j.jdwFrekuensi == 'Mingguan') {
       var curr = rangeStart;
+      final intervalDays = j.jdwGapHari > 0 ? j.jdwGapHari : 7;
       while (!curr.isAfter(rangeEnd)) {
         final nextWork = _findNextWorkingDay(curr, rangeEnd, divisi, holidays);
         if (nextWork != null) {
           dates.add(nextWork);
         }
-        curr = curr.add(const Duration(days: 7));
+        curr = curr.add(Duration(days: intervalDays));
       }
     } else if (j.jdwFrekuensi == 'Bulanan') {
       var curr = rangeStart;
@@ -174,8 +175,9 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
               'ID ${jadwal.jdwJenisId}';
           final now = DateTime.now();
           final startDate = DateTime.tryParse(jadwal.jdwTglMulai) ?? now;
-          final nextDueParsed = jadwal.jdwNextDueDate != null
-              ? DateTime.tryParse(jadwal.jdwNextDueDate!)
+          final effectiveNextDueStr = jadwal.effectiveNextDueDateStr;
+          final nextDueParsed = effectiveNextDueStr != null
+              ? DateTime.tryParse(effectiveNextDueStr)
               : null;
           final rangeEnd = (nextDueParsed != null && nextDueParsed.isAfter(now))
               ? nextDueParsed
@@ -576,7 +578,7 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
       _InfoItem(
           icon: Icons.update_outlined,
           label: 'Jadwal Berikutnya',
-          value: _displayDate(jadwal.jdwNextDueDate)),
+          value: _displayDate(jadwal.effectiveNextDueDateStr)),
       _InfoItem(
           icon: Icons.pie_chart_outline,
           label: 'Presentase Realisasi',
@@ -864,7 +866,8 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
     for (final inv in provider.inventarisByJenis) {
       final invIdRaw = inv['inv_id'];
       final invId = invIdRaw is int ? invIdRaw : int.tryParse('$invIdRaw');
-      if (invId != null && selesaiInvIds.contains(invId)) {
+      final isDoneBackend = inv['inv_is_done_current_period'] == true;
+      if (isDoneBackend || (invId != null && selesaiInvIds.contains(invId))) {
         sudahCount++;
       }
     }
@@ -873,7 +876,9 @@ class _JadwalDetailScreenState extends State<JadwalDetailScreen> {
     final filteredList = provider.inventarisByJenis.where((inv) {
       final invIdRaw = inv['inv_id'];
       final invId = invIdRaw is int ? invIdRaw : int.tryParse('$invIdRaw');
-      final sudahTerealisasi = invId != null && selesaiInvIds.contains(invId);
+      final isDoneBackend = inv['inv_is_done_current_period'] == true;
+      final sudahTerealisasi =
+          isDoneBackend || (invId != null && selesaiInvIds.contains(invId));
 
       if (_realisasiFilter == 'Sudah') {
         return sudahTerealisasi;

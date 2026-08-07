@@ -570,11 +570,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(height: 3),
               Row(
                 children: [
-                  Icon(
-                    Icons.calendar_today_rounded,
-                    size: 10,
-                    color: Colors.white.withValues(alpha: 0.8),
-                  ),
                   const SizedBox(width: 4),
                   Text(
                     DateFormatter.toDisplayDateTime(DateTime.now()),
@@ -1395,7 +1390,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final belumSelesaiList = inventarisList.where((inv) {
       final invIdRaw = inv['inv_id'];
       final invId = invIdRaw is int ? invIdRaw : int.tryParse('$invIdRaw');
-      return invId == null || !selesaiInvIds.contains(invId);
+      final isDone = inv['inv_is_done_current_period'] == true;
+      return (invId == null || !selesaiInvIds.contains(invId)) && !isDone;
     }).toList();
 
     if (inventarisList.isEmpty) {
@@ -2531,11 +2527,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(
-                            Icons.calendar_today_rounded,
-                            size: 11,
-                            color: primaryBlue,
-                          ),
                           const SizedBox(width: 5),
                           Text(
                             '${_monthNames[_selectedTargetMonth.month - 1]} ${_selectedTargetMonth.year}',
@@ -3134,6 +3125,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  Future<void> _handleRealisasiTap(JadwalModel jadwal) async {
+    final p = context.read<JadwalProvider>();
+    await p.fetchJadwalDetail(jadwal.jdwId);
+    await p.fetchRealisasi(jadwalId: jadwal.jdwId);
+    if (!mounted) return;
+
+    final inventarisList = p.inventarisByJenis
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
+    final terpakaiInvIds = p.realisasiList
+        .where((r) => _isSameCurrentPeriod(r, jadwal))
+        .map((r) => r.realInvId)
+        .toSet();
+    final belumSelesaiList = inventarisList
+        .where((inv) =>
+            !terpakaiInvIds.contains(inv['inv_id']) &&
+            inv['inv_is_done_current_period'] != true &&
+            inv['inv_is_gap_eligible'] != false)
+        .toList();
+
+    if (inventarisList.isEmpty) {
+      AppNotifier.showError(context, 'Inventaris untuk jadwal ini belum ada');
+      return;
+    }
+    if (belumSelesaiList.isEmpty) {
+      AppNotifier.showWarning(
+          context, 'Semua unit sudah direalisasi periode ini');
+      return;
+    }
+    _showInventarisPicker(jadwal, belumSelesaiList);
+  }
+
   Widget _buildJadwalItem(
     JadwalModel item,
     JadwalProvider p, {
@@ -3366,9 +3389,59 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       valueColor: AlwaysStoppedAnimation<Color>(progressColor),
                     ),
                   ),
+                  () {
+                    final auth = context.read<AuthProvider>();
+                    final userRole = (auth.user?['user_jabatan'] ?? '').toString().trim().toLowerCase();
+                    final isUser = userRole == 'user' || userRole == 'teknisi' || userRole == 'it_support';
+
+                    if (isUser) {
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 10),
+                        child: _actionBtn(
+                          Icons.playlist_add_check_circle_outlined,
+                          'Lakukan Realisasi',
+                          AppColors.primary,
+                          () => _handleRealisasiTap(item),
+                        ),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  }(),
                 ],
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _actionBtn(
+      IconData icon, String label, Color color, VoidCallback onPressed) {
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon, size: 16),
+        label: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.arrow_forward_rounded, size: 14),
+          ],
+        ),
+        style: FilledButton.styleFrom(
+          backgroundColor: color,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          minimumSize: const Size.fromHeight(40),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
           ),
         ),
       ),
@@ -3469,7 +3542,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     // 4. Fallback jika tidak ada daysRemaining dari backend
-    final fallbackDate = _parseDateOnly(j.jdwNextDueDate ?? j.jdwTglMulai);
+    final fallbackDate = _parseDateOnly(j.effectiveNextDueDateStr ?? j.jdwTglMulai);
     if (fallbackDate == null) {
       return 0;
     }

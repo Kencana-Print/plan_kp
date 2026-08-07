@@ -419,7 +419,7 @@ class _MainAppWrapperState extends State<MainAppWrapper> with WidgetsBindingObse
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      '${(percent * 100).toInt()}%',
+                      '${(percent * 100).round()}%',
                       style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -459,7 +459,9 @@ class _MainAppWrapperState extends State<MainAppWrapper> with WidgetsBindingObse
         .downloadAndInstall(
       manifest: manifest,
       onProgress: (percent) {
-        if (!isCancelled) progressNotifier.value = percent.toDouble();
+        if (!isCancelled) {
+          progressNotifier.value = (percent / 100.0).clamp(0.0, 1.0);
+        }
       },
     )
         .then((result) {

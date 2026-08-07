@@ -19,8 +19,24 @@ class JadwalProvider extends ChangeNotifier {
   Map<String, dynamic> dashboardSummary = {};
   List<RealisasiModel> kendalaList = [];
   bool loadingKendala = false;
+  String? _lastKendalaDivisi;
+  DateTime? _lastKendalaFetchTime;
 
-  Future<void> fetchKendalaDivisi({String? divisi, String filterTindakLanjut = 'all'}) async {
+  Future<void> fetchKendalaDivisi({
+    String? divisi,
+    String filterTindakLanjut = 'all',
+    bool forceRefresh = false,
+  }) async {
+    // ⚡ Smart Caching 30 detik: Jika request sama dan belum 30 detik, manfaatkan cache lokal
+    final now = DateTime.now();
+    if (!forceRefresh &&
+        _lastKendalaDivisi == divisi &&
+        _lastKendalaFetchTime != null &&
+        now.difference(_lastKendalaFetchTime!).inSeconds < 30 &&
+        kendalaList.isNotEmpty) {
+      return;
+    }
+
     loadingKendala = true;
     notifyListeners();
     try {
@@ -32,6 +48,8 @@ class JadwalProvider extends ChangeNotifier {
       final res = await ApiClient.get('${ApiConfig.realisasi}/kendala', query: query);
       final rawList = (res['data'] as List? ?? []);
       kendalaList = rawList.map((j) => RealisasiModel.fromJson(j)).toList();
+      _lastKendalaDivisi = divisi;
+      _lastKendalaFetchTime = now;
       _setError(null);
     } on ApiException catch (e) {
       _setError(e.message);
@@ -394,6 +412,29 @@ class JadwalProvider extends ChangeNotifier {
     }
   }
 
+  Future<List<RealisasiModel>> fetchRealisasiForReport({
+    required int bulan,
+    required int tahun,
+    String? divisi,
+    int? teknisiId,
+  }) async {
+    try {
+      final query = <String, dynamic>{
+        'bulan': bulan,
+        'tahun': tahun,
+        'status': 'Selesai',
+        if (divisi != null && divisi != 'Semua Divisi') 'divisi': divisi,
+        if (teknisiId != null) 'teknisi_id': teknisiId,
+      };
+      final res = await ApiClient.get(ApiConfig.realisasi, query: query);
+      return ((res['data']['items'] ?? res['data']) as List)
+          .map((e) => RealisasiModel.fromJson(e))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
   Future<List<RealisasiModel>> fetchDraftRealisasi({bool? byDivisi}) async {
     try {
       final query = <String, dynamic>{
@@ -406,6 +447,27 @@ class JadwalProvider extends ChangeNotifier {
           .toList();
     } on ApiException {
       return [];
+    }
+  }
+
+  Future<RealisasiModel?> fetchLastTemuanByInventaris(int invId) async {
+    try {
+      final res = await ApiClient.get(ApiConfig.realisasi, query: {'inv_id': invId});
+      final list = ((res['data']['items'] ?? res['data']) as List)
+          .map((e) => RealisasiModel.fromJson(e))
+          .toList();
+
+      final temuanList = list.where((r) {
+        final hasKet = r.realKeterangan != null && r.realKeterangan!.trim().isNotEmpty;
+        final notBaik = r.realKondisiAkhir != null && r.realKondisiAkhir != 'Baik';
+        return hasKet || notBaik;
+      }).toList();
+
+      if (temuanList.isEmpty) return null;
+      temuanList.sort((a, b) => b.realTgl.compareTo(a.realTgl));
+      return temuanList.first;
+    } catch (_) {
+      return null;
     }
   }
 

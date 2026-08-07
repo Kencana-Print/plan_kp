@@ -470,19 +470,27 @@ class _JenisFormState extends State<_JenisForm> {
 
   @override
   Widget build(BuildContext context) {
-    final isManager = context.read<AuthProvider>().user?['user_jabatan'] == 'manager';
-    return Padding(
-      padding:
-          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+    final isManager =
+        context.read<AuthProvider>().user?['user_jabatan'] == 'manager';
+    final mediaQuery = MediaQuery.of(context);
+    final bottomInset = mediaQuery.viewInsets.bottom;
+    final bottomPadding = mediaQuery.padding.bottom;
+
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeOut,
+      padding: EdgeInsets.only(bottom: bottomInset),
       child: Container(
         decoration: const BoxDecoration(
           color: Color(0xFFF8FAFC),
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+        padding: EdgeInsets.fromLTRB(
+            20, 12, 20, 32 + (bottomInset > 0 ? 0 : bottomPadding)),
         child: Form(
           key: _form,
           child: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,

@@ -25,6 +25,7 @@ class AppNotifier {
     final formatted = DateFormatter.formatMessageDates(message);
     await AwesomeDialog(
       context: context,
+      useRootNavigator: true,
       width: _dialogWidth(context),
       dialogType: DialogType.warning,
       animType: AnimType.scale,
@@ -41,6 +42,7 @@ class AppNotifier {
     final formatted = DateFormatter.formatMessageDates(message);
     await AwesomeDialog(
       context: context,
+      useRootNavigator: true,
       width: _dialogWidth(context),
       dialogType: DialogType.error,
       animType: AnimType.scale,
@@ -56,6 +58,7 @@ class AppNotifier {
     if (!context.mounted) return;
     await AwesomeDialog(
       context: context,
+      useRootNavigator: true,
       width: _dialogWidth(context),
       dialogType: DialogType.success,
       animType: AnimType.scale,
@@ -75,6 +78,7 @@ class AppNotifier {
     if (!context.mounted) return;
     AwesomeDialog(
       context: context,
+      useRootNavigator: true,
       width: _dialogWidth(context),
       dialogType: DialogType.success,
       animType: AnimType.scale,
@@ -96,6 +100,7 @@ class AppNotifier {
     if (!context.mounted) return;
     await AwesomeDialog(
       context: context,
+      useRootNavigator: true,
       width: _dialogWidth(context),
       dialogType: DialogType.question,
       animType: AnimType.scale,
@@ -109,5 +114,41 @@ class AppNotifier {
       btnCancelOnPress: () {},
       headerAnimationLoop: true,
     ).show();
+  }
+
+  static void showInfo(
+    BuildContext context,
+    String message, {
+    Duration duration = const Duration(seconds: 2),
+  }) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(fontSize: 13, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: AppColors.primary,
+        behavior: SnackBarBehavior.floating,
+        duration: duration,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
   }
 }

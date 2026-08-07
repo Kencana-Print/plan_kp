@@ -8,6 +8,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../core/widgets/app_notifier.dart';
 import '../models/checklist_hasil_model.dart';
+import '../models/realisasi_model.dart';
 import '../providers/jadwal_provider.dart';
 
 // ═══════════════════════════════════════════════════════════════
@@ -35,6 +36,8 @@ class _RealisasiFormScreenState extends State<RealisasiFormScreen> {
   String? _imageName;
   int? _realId;
 
+  RealisasiModel? _lastTemuan;
+
   static const _kondisiList = ['Baik', 'Perlu Perhatian', 'Rusak'];
   static const _allowedImageExt = ['jpg', 'jpeg', 'png', 'webp'];
 
@@ -51,7 +54,21 @@ class _RealisasiFormScreenState extends State<RealisasiFormScreen> {
     _invMerk = widget.args['invMerk'];
     _invKondisiAwal = widget.args['invKondisi'];
     _invPicNama = widget.args['invPicNama'];
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadTemplate());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadTemplate();
+      _fetchLastTemuan();
+    });
+  }
+
+  Future<void> _fetchLastTemuan() async {
+    if (_invId == null) return;
+    final p = context.read<JadwalProvider>();
+    final temuan = await p.fetchLastTemuanByInventaris(_invId!);
+    if (mounted && temuan != null) {
+      setState(() {
+        _lastTemuan = temuan;
+      });
+    }
   }
 
   final _scrollController = ScrollController();
@@ -456,6 +473,124 @@ class _RealisasiFormScreenState extends State<RealisasiFormScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildLastTemuanBanner() {
+    if (_lastTemuan == null) return const SizedBox.shrink();
+
+    final tglStr = _lastTemuan!.realTgl.isNotEmpty
+        ? DateFormatter.formatMessageDates(_lastTemuan!.realTgl)
+        : '';
+    final ketStr = (_lastTemuan!.realKeterangan ?? '').trim();
+    final kondisiStr = _lastTemuan!.realKondisiAkhir ?? 'Perlu Perhatian';
+
+    const warningColor = Color(0xFFB45309);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.warning.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.history_rounded, color: warningColor, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Temuan Terakhir Inventaris ${tglStr.isNotEmpty ? "($tglStr)" : ""}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: warningColor,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  kondisiStr,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: warningColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (ketStr.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              '"$ketStr"',
+              style: const TextStyle(
+                fontSize: 11.5,
+                fontStyle: FontStyle.italic,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerRight,
+            child: InkWell(
+              onTap: () {
+                final copyText = ketStr.isNotEmpty
+                    ? ketStr
+                    : 'Temuan sebelumnya belum teratasi: $kondisiStr';
+
+                if (_ketCtrl.text.trim().isEmpty) {
+                  _ketCtrl.text = copyText;
+                } else if (!_ketCtrl.text.contains(copyText)) {
+                  _ketCtrl.text = '${_ketCtrl.text.trim()}\n\n[Temuan Sebelumnya]: $copyText';
+                }
+
+                if (kondisiStr == 'Perlu Perhatian' || kondisiStr == 'Rusak') {
+                  setState(() => _kondisi = kondisiStr);
+                }
+
+                AppNotifier.showInfo(
+                  context,
+                  'Catatan temuan sebelumnya berhasil disalin!',
+                );
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.warning,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.content_copy_rounded, size: 13, color: Colors.white),
+                    SizedBox(width: 6),
+                    Text(
+                      'Gunakan Catatan Temuan Ini',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -931,6 +1066,7 @@ class _RealisasiFormScreenState extends State<RealisasiFormScreen> {
                           }).toList(),
                         ),
                         const SizedBox(height: 18),
+                        _buildLastTemuanBanner(),
                         const Text('Catatan',
                             style: TextStyle(
                                 fontWeight: FontWeight.w700, fontSize: 14)),

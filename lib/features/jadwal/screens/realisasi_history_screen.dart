@@ -343,19 +343,46 @@ class _RealisasiHistoryScreenState extends State<RealisasiHistoryScreen> {
       appBar: AppBar(
         title: const Text('Realisasi'),
         actions: [
-          IconButton(
-            tooltip: 'Export Laporan PDF',
-            icon: const Icon(Icons.picture_as_pdf_rounded),
-            onPressed: () {
-              final p = context.read<JadwalProvider>();
-              ExportPdfDialog.show(
-                context,
-                realisasiList: p.realisasiList,
-                jadwalList: p.jadwalList,
-              );
-            },
+          Padding(
+            padding: const EdgeInsets.only(right: 12, top: 8, bottom: 8),
+            child: InkWell(
+              onTap: () {
+                final p = context.read<JadwalProvider>();
+                ExportPdfDialog.show(
+                  context,
+                  realisasiList: p.realisasiList,
+                  jadwalList: p.jadwalList,
+                );
+              },
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.accent,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: AppColors.accent,
+                    width: 1,
+                  ),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.file_download_rounded, size: 16, color: Colors.white),
+                    SizedBox(width: 5),
+                    Text(
+                      'Export',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
-          const SizedBox(width: 4),
         ],
       ),
       body: RefreshIndicator(
