@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 abstract class SecureStorage {
   Future<String?> read(String key);
@@ -7,57 +9,74 @@ abstract class SecureStorage {
   Future<void> deleteAll();
 }
 
-class FlutterSecureStorageAdapter implements SecureStorage {
-  const FlutterSecureStorageAdapter([FlutterSecureStorage? storage])
-      : _storage = storage ?? const FlutterSecureStorage();
-
-  final FlutterSecureStorage _storage;
+class WebSafeStorage implements SecureStorage {
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
 
   @override
-  Future<void> delete(String key) => _storage.delete(key: key);
+  Future<String?> read(String key) async {
+    if (kIsWeb) {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(key);
+    }
+    try {
+      return await _secureStorage.read(key: key);
+    } catch (_) {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(key);
+    }
+  }
 
   @override
-  Future<void> deleteAll() => _storage.deleteAll();
-
-  @override
-  Future<String?> read(String key) => _storage.read(key: key);
-
-  @override
-  Future<void> write(String key, String value) =>
-      _storage.write(key: key, value: value);
-}
-
-class InMemorySecureStorage implements SecureStorage {
-  final Map<String, String> _store = {};
+  Future<void> write(String key, String value) async {
+    if (kIsWeb) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(key, value);
+      return;
+    }
+    try {
+      await _secureStorage.write(key: key, value: value);
+    } catch (_) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(key, value);
+    }
+  }
 
   @override
   Future<void> delete(String key) async {
-    _store.remove(key);
+    if (kIsWeb) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(key);
+      return;
+    }
+    try {
+      await _secureStorage.delete(key: key);
+    } catch (_) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(key);
+    }
   }
 
   @override
   Future<void> deleteAll() async {
-    _store.clear();
-  }
-
-  @override
-  Future<String?> read(String key) async => _store[key];
-
-  @override
-  Future<void> write(String key, String value) async {
-    _store[key] = value;
+    if (kIsWeb) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+      return;
+    }
+    try {
+      await _secureStorage.deleteAll();
+    } catch (_) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+    }
   }
 }
 
 class SecureStorageService {
-  static SecureStorage instance = const FlutterSecureStorageAdapter();
+  static SecureStorage instance = WebSafeStorage();
 
   static Future<String?> read(String key) => instance.read(key);
-
-  static Future<void> write(String key, String value) =>
-      instance.write(key, value);
-
+  static Future<void> write(String key, String value) => instance.write(key, value);
   static Future<void> delete(String key) => instance.delete(key);
-
   static Future<void> deleteAll() => instance.deleteAll();
 }

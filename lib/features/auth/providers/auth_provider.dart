@@ -2,14 +2,12 @@
 
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/api_client.dart';
+import '../../../core/utils/secure_storage.dart';
 
 class AuthProvider extends ChangeNotifier {
-  static const _storage = FlutterSecureStorage();
-
   Map<String, dynamic>? _user;
   bool _loading = false;
   String? _error;
@@ -21,14 +19,14 @@ class AuthProvider extends ChangeNotifier {
   String get jabatan => _user?['user_jabatan'] ?? '';
 
   Future<void> checkSession() async {
-    final token = await _storage.read(key: StorageKeys.token);
+    final token = await SecureStorageService.read(StorageKeys.token);
     if (token == null) return;
     try {
       final res = await ApiClient.get(ApiConfig.me);
       _user = res['data'];
       notifyListeners();
     } catch (_) {
-      await _storage.delete(key: StorageKeys.token);
+      await SecureStorageService.delete(StorageKeys.token);
     }
   }
 
@@ -51,8 +49,8 @@ class AuthProvider extends ChangeNotifier {
       );
       final token = res['data']['token'] as String;
       _user = res['data']['user'];
-      await _storage.write(key: StorageKeys.token, value: token);
-      await _storage.write(key: StorageKeys.userData, value: jsonEncode(_user));
+      await SecureStorageService.write(StorageKeys.token, token);
+      await SecureStorageService.write(StorageKeys.userData, jsonEncode(_user));
       _loading = false;
       notifyListeners();
       return true;
@@ -61,7 +59,8 @@ class AuthProvider extends ChangeNotifier {
       _loading = false;
       notifyListeners();
       return false;
-    } catch (_) {
+    } catch (e) {
+      if (kDebugMode) debugPrint('[Login Error] $e');
       _error = 'Tidak dapat terhubung ke server';
       _loading = false;
       notifyListeners();
@@ -96,8 +95,8 @@ class AuthProvider extends ChangeNotifier {
       );
       final token = res['data']['token'] as String;
       _user = res['data']['user'];
-      await _storage.write(key: StorageKeys.token, value: token);
-      await _storage.write(key: StorageKeys.userData, value: jsonEncode(_user));
+      await SecureStorageService.write(StorageKeys.token, token);
+      await SecureStorageService.write(StorageKeys.userData, jsonEncode(_user));
       _loading = false;
       notifyListeners();
       return true;
@@ -106,7 +105,8 @@ class AuthProvider extends ChangeNotifier {
       _loading = false;
       notifyListeners();
       return false;
-    } catch (_) {
+    } catch (e) {
+      if (kDebugMode) debugPrint('[Register Error] $e');
       _error = 'Tidak dapat terhubung ke server';
       _loading = false;
       notifyListeners();
@@ -116,8 +116,8 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> logout() async {
     _user = null;
-    await _storage.delete(key: StorageKeys.token);
-    await _storage.delete(key: StorageKeys.userData);
+    await SecureStorageService.delete(StorageKeys.token);
+    await SecureStorageService.delete(StorageKeys.userData);
     notifyListeners();
   }
 }

@@ -3,12 +3,10 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../constants/app_constants.dart';
+import 'secure_storage.dart';
 
 class ApiClient {
-  static const _storage = FlutterSecureStorage();
-
   static String _normalizeImageFilename(String? rawName) {
     const fallback = 'upload.jpg';
     final name = (rawName ?? '').trim();
@@ -26,7 +24,7 @@ class ApiClient {
     return '$base.jpg';
   }
 
-  static Future<String?> getToken() => _storage.read(key: StorageKeys.token);
+  static Future<String?> getToken() => SecureStorageService.read(StorageKeys.token);
 
   static Future<Map<String, String>> _headers({bool auth = true}) async {
     final headers = {'Content-Type': 'application/json'};
