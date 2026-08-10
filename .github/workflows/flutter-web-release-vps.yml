@@ -1,0 +1,121 @@
+name: Flutter Web Release to VPS
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: flutter-web-release-vps-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy-web:
+    runs-on: ubuntu-latest
+
+    steps:
+      # =========================================
+      # 1. Checkout Source Code
+      # =========================================
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # =========================================
+      # 2. Setup Flutter SDK
+      # =========================================
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Verify Flutter Version
+        run: flutter --version
+
+      # =========================================
+      # 3. Install Dependencies
+      # =========================================
+      - name: Install Dependencies
+        run: flutter pub get
+
+      # =========================================
+      # 4. Inject Environment Variables (.env)
+      # =========================================
+      - name: Create .env File from Secret
+        shell: bash
+        run: |
+          if [ -n "${{ secrets.ENV_FILE }}" ]; then
+            echo "${{ secrets.ENV_FILE }}" > .env
+          else
+            echo "Warning: secrets.ENV_FILE is empty"
+          fi
+
+      # =========================================
+      # 5. Build Flutter Web Release
+      # =========================================
+      - name: Build Flutter Web (Release)
+        run: flutter build web --release --dart-define-from-file=.env
+
+      # =========================================
+      # 6. Compress Build Artifacts
+      # =========================================
+      - name: Compress Web Artifacts
+        shell: bash
+        run: |
+          mkdir -p deploy/web_out
+          tar -czf deploy/web_out/web-release.tar.gz -C build/web .
+
+      # =========================================
+      # 7. Upload Compressed Artifacts to VPS
+      # =========================================
+      - name: Upload Web Artifact to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "deploy/web_out/web-release.tar.gz"
+          target: "/tmp/plankp_web_deploy"
+
+      # =========================================
+      # 8. Deploy & Extract Static Files on VPS
+      # =========================================
+      - name: Extract Web Files & Update Server
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+
+            # Menggunakan folder target yang sama dengan rilis Android APK (${{ secrets.VPS_TARGET_PATH }})
+            TARGET_PATH="${{ secrets.VPS_TARGET_PATH }}"
+
+            echo "Deploying Flutter Web to: $TARGET_PATH"
+
+            # Pastikan folder target ada
+            mkdir -p "$TARGET_PATH"
+
+            # Ekstrak file web baru (akan meng-overwrite file web statis seperti index.html, main.dart.js, dll.
+            # tanpa menghapus file *.apk atau latest.json)
+            tar -xzf /tmp/plankp_web_deploy/deploy/web_out/web-release.tar.gz -C "$TARGET_PATH"
+
+            # Bersihkan file arsip temporary
+            rm -rf /tmp/plankp_web_deploy
+
+            echo "Flutter Web deployment completed successfully."
+
+      # =========================================
+      # 9. Publish Summary
+      # =========================================
+      - name: Publish Action Summary
+        run: |
+          echo "### 🚀 Flutter Web Release Deployed" >> "$GITHUB_STEP_SUMMARY"
+          echo "Target Server: \`${{ secrets.VPS_HOST }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Deployment Time: \`$(date -u +'%Y-%m-%d %H:%M:%S UTC')\`" >> "$GITHUB_STEP_SUMMARY"
