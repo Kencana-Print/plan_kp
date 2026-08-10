@@ -159,25 +159,40 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-    final isDesktop = size.width > 900;
-
     return Scaffold(
       backgroundColor: _pageBg,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.all(20),
+            padding: EdgeInsets.all(AppBreakpoints.isMobile(context) ? 20 : 28),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1040),
-              child: isDesktop
+              constraints: BoxConstraints(
+                maxWidth: AppBreakpoints.isDesktop(context)
+                    ? 1040
+                    : (AppBreakpoints.isTablet(context) ? 580 : double.infinity),
+              ),
+              child: AppBreakpoints.isDesktop(context)
                   ? _buildDesktopLayout(context)
-                  : _buildMobileLayout(context),
+                  : (AppBreakpoints.isTablet(context)
+                      ? _buildTabletLayout(context)
+                      : _buildMobileLayout(context)),
             ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildTabletLayout(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildHeroPanel(context, compact: true),
+        const SizedBox(height: 16),
+        _buildLoginCard(context),
+        _buildFooterLink(),
+      ],
     );
   }
 

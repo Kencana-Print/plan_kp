@@ -914,8 +914,12 @@ class _RealisasiFormScreenState extends State<RealisasiFormScreen> {
     final templateError = context.watch<JadwalProvider>().error;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final maxContentWidth =
-            constraints.maxWidth > 1100 ? 920.0 : constraints.maxWidth;
+        final maxContentWidth = AppBreakpoints.responsiveValue(
+          context,
+          mobile: constraints.maxWidth,
+          tablet: constraints.maxWidth > 880 ? 860.0 : constraints.maxWidth,
+          desktop: 1080.0,
+        );
         return Center(
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: maxContentWidth),

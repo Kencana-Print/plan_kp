@@ -1561,8 +1561,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         onRefresh: _loadData,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final maxContentWidth =
-                constraints.maxWidth > 1220 ? 1180.0 : constraints.maxWidth;
+            final maxContentWidth = AppBreakpoints.responsiveValue(
+              context,
+              mobile: constraints.maxWidth,
+              tablet: constraints.maxWidth > 880 ? 860.0 : constraints.maxWidth,
+              desktop: 1180.0,
+            );
             return Center(
               child: SizedBox(
                 width: maxContentWidth,

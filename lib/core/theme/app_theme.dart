@@ -80,6 +80,28 @@ class AppBreakpoints {
 
   static bool isDesktop(BuildContext context) =>
       MediaQuery.of(context).size.width >= tablet;
+
+  static int gridColumns(
+    BuildContext context, {
+    int mobile = 1,
+    int tablet = 2,
+    int desktop = 4,
+  }) {
+    if (isMobile(context)) return mobile;
+    if (isTablet(context)) return tablet;
+    return desktop;
+  }
+
+  static T responsiveValue<T>(
+    BuildContext context, {
+    required T mobile,
+    T? tablet,
+    T? desktop,
+  }) {
+    if (isDesktop(context)) return desktop ?? tablet ?? mobile;
+    if (isTablet(context)) return tablet ?? mobile;
+    return mobile;
+  }
 }
 
 class AppSpacing {

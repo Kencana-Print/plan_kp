@@ -172,7 +172,12 @@ class _MonitoringDivisiScreenState extends State<MonitoringDivisiScreen>
           : Center(
               child: Container(
                 constraints: BoxConstraints(
-                  maxWidth: isDesktop ? 860 : double.infinity,
+                  maxWidth: AppBreakpoints.responsiveValue(
+                    context,
+                    mobile: double.infinity,
+                    tablet: 820.0,
+                    desktop: 1180.0,
+                  ),
                 ),
                 child: TabBarView(
                   controller: _tabController,

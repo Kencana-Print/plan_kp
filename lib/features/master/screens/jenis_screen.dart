@@ -73,8 +73,12 @@ class _JenisScreenState extends State<JenisScreen> {
 
           return LayoutBuilder(
             builder: (_, constraints) {
-              final maxWidth =
-                  constraints.maxWidth > 1080 ? 1020.0 : constraints.maxWidth;
+              final maxWidth = AppBreakpoints.responsiveValue(
+                context,
+                mobile: constraints.maxWidth,
+                tablet: constraints.maxWidth > 880 ? 860.0 : constraints.maxWidth,
+                desktop: 1180.0,
+              );
               return Align(
                 alignment: Alignment.topCenter,
                 child: SizedBox(

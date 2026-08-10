@@ -318,11 +318,12 @@ class _InventarisScreenState extends State<InventarisScreen> {
 
           return LayoutBuilder(
             builder: (context, constraints) {
-              final maxContentWidth = constraints.maxWidth > 1024
-                  ? 980.0
-                  : constraints.maxWidth > 760
-                      ? 760.0
-                      : constraints.maxWidth;
+              final maxContentWidth = AppBreakpoints.responsiveValue(
+                context,
+                mobile: constraints.maxWidth,
+                tablet: constraints.maxWidth > 880 ? 860.0 : constraints.maxWidth,
+                desktop: 1180.0,
+              );
 
               return Align(
                 alignment: Alignment.topCenter,

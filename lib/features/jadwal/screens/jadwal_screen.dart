@@ -791,8 +791,12 @@ class _JadwalScreenState extends State<JadwalScreen> {
     final isAdmin = role == 'admin' || role == 'manager';
     final isUser =
         role == 'user' || role == 'teknisi' || role == 'it_support';
-    final isDesktop = AppBreakpoints.isDesktop(context);
-    final maxContentWidth = isDesktop ? 1180.0 : 860.0;
+    final maxContentWidth = AppBreakpoints.responsiveValue(
+      context,
+      mobile: double.infinity,
+      tablet: 860.0,
+      desktop: 1180.0,
+    );
 
     return Scaffold(
       backgroundColor: _kPageBg,

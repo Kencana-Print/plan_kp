@@ -106,18 +106,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop = MediaQuery.of(context).size.width > 900;
-
     return Scaffold(
       backgroundColor: _pageBg,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.all(20),
+            padding: EdgeInsets.all(AppBreakpoints.isMobile(context) ? 20 : 28),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1040),
-              child: isDesktop
+              constraints: BoxConstraints(
+                maxWidth: AppBreakpoints.isDesktop(context)
+                    ? 1040
+                    : (AppBreakpoints.isTablet(context) ? 620 : double.infinity),
+              ),
+              child: AppBreakpoints.isDesktop(context)
                   ? Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
@@ -126,18 +128,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         Expanded(child: _buildFormCard()),
                       ],
                     )
-                  : Column(
-                      children: [
-                        _buildHeroPanel(compact: true),
-                        Transform.translate(
-                          offset: const Offset(0, -22),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            child: _buildFormCard(),
-                          ),
-                        ),
-                      ],
-                    ),
+                  : (AppBreakpoints.isTablet(context)
+                      ? Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _buildHeroPanel(compact: true),
+                            const SizedBox(height: 16),
+                            _buildFormCard(),
+                          ],
+                        )
+                      : Column(
+                          children: [
+                            _buildHeroPanel(compact: true),
+                            Transform.translate(
+                              offset: const Offset(0, -22),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 4),
+                                child: _buildFormCard(),
+                              ),
+                            ),
+                          ],
+                        )),
             ),
           ),
         ),
