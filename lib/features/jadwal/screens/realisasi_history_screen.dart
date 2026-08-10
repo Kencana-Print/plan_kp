@@ -14,6 +14,7 @@ import '../providers/jadwal_provider.dart';
 import '../../../core/widgets/app_notifier.dart';
 import '../widgets/realisasi_detail_sheet.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/responsive_sheet.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../widgets/export_pdf_dialog.dart';
 
@@ -202,13 +203,9 @@ class _RealisasiHistoryScreenState extends State<RealisasiHistoryScreen> {
     });
 
     try {
-      await showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        showDragHandle: true,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-        ),
+      await showResponsiveSheet<void>(
+        context,
+        maxDesktopWidth: 560,
         builder: (context) {
           final media = MediaQuery.of(context);
           return SafeArea(

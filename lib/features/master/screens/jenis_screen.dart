@@ -7,6 +7,7 @@ import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/shimmer_loading.dart';
 import '../models/jenis_model.dart';
 import '../providers/master_provider.dart';
+import '../../../core/utils/responsive_sheet.dart';
 
 class JenisScreen extends StatefulWidget {
   const JenisScreen({super.key});
@@ -28,17 +29,10 @@ class _JenisScreenState extends State<JenisScreen> {
   }
 
   void _openForm([JenisModel? jenis]) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        decoration: const BoxDecoration(
-          color: _kPageBg,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: _JenisForm(jenis: jenis),
-      ),
+    showResponsiveSheet(
+      context,
+      maxDesktopWidth: 520,
+      builder: (_) => _JenisForm(jenis: jenis),
     );
   }
 
@@ -190,7 +184,12 @@ class _JenisScreenState extends State<JenisScreen> {
                           }
                           return ListView.separated(
                             physics: const BouncingScrollPhysics(),
-                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
+                            padding: EdgeInsets.fromLTRB(
+                              AppBreakpoints.isDesktop(context) ? 0 : 16,
+                              12,
+                              AppBreakpoints.isDesktop(context) ? 0 : 16,
+                              80,
+                            ),
                             itemCount: filtered.length,
                             separatorBuilder: (_, __) =>
                                 const SizedBox(height: 12),

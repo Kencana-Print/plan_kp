@@ -18,6 +18,7 @@ import '../../master/screens/jenis_screen.dart';
 import '../../master/screens/user_screen.dart';
 import '../../jadwal/widgets/realisasi_detail_sheet.dart';
 import '../../../core/widgets/shimmer_loading.dart';
+import '../../../core/utils/responsive_sheet.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -620,10 +621,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     List<RealisasiModel> initialList, {
     String? userDivisi,
   }) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+    showResponsiveSheet(
+      context,
+      maxDesktopWidth: 680,
       builder: (ctx) {
         String currentTab = '0'; // '0': Belum, '1': Sudah, 'all': Semua
         String searchQuery = '';
@@ -1422,10 +1422,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     JadwalModel jadwal,
     List<Map<String, dynamic>> inventarisList,
   ) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+    showResponsiveSheet(
+      context,
+      maxDesktopWidth: 600,
       builder: (_) => _InventarisPickerSheet(
         jadwal: jadwal,
         inventarisList: inventarisList,
@@ -2297,10 +2296,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     List<JadwalModel> plans,
     JadwalProvider p,
   ) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+    showResponsiveSheet(
+      context,
+      maxDesktopWidth: 680,
       builder: (_) => Container(
         height: MediaQuery.of(context).size.height * 0.82,
         decoration: const BoxDecoration(
@@ -3074,57 +3072,82 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return _buildQuickStatsSkeleton();
     }
 
+    final isDesktop = AppBreakpoints.isDesktop(context);
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        SizedBox(
-          height: 198,
-          child: PageView(
-            controller: _heroCardPageController,
-            onPageChanged: (idx) {
-              setState(() {
-                _heroCardPageIndex = idx;
-              });
-            },
-            children: [
-              _buildTargetRealisasiCard(
-                doneBulanIni: doneBulanIni,
-                totalTargetBulanIni: totalTargetBulanIni,
-                isLoading: false,
+        isDesktop
+            ? SizedBox(
+                height: 198,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _buildTargetRealisasiCard(
+                        doneBulanIni: doneBulanIni,
+                        totalTargetBulanIni: totalTargetBulanIni,
+                        isLoading: false,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildMonthlyComparisonChartCard(
+                        doneBulanIni: doneBulanIni,
+                        totalTargetBulanIni: totalTargetBulanIni,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            : SizedBox(
+                height: 198,
+                child: PageView(
+                  controller: _heroCardPageController,
+                  onPageChanged: (idx) {
+                    setState(() {
+                      _heroCardPageIndex = idx;
+                    });
+                  },
+                  children: [
+                    _buildTargetRealisasiCard(
+                      doneBulanIni: doneBulanIni,
+                      totalTargetBulanIni: totalTargetBulanIni,
+                      isLoading: false,
+                    ),
+                    _buildMonthlyComparisonChartCard(
+                      doneBulanIni: doneBulanIni,
+                      totalTargetBulanIni: totalTargetBulanIni,
+                    ),
+                  ],
+                ),
               ),
-              _buildMonthlyComparisonChartCard(
-                doneBulanIni: doneBulanIni,
-                totalTargetBulanIni: totalTargetBulanIni,
+        if (!isDesktop) const SizedBox(height: 4),
+        if (!isDesktop)
+          // Dots Page Indicator
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                width: _heroCardPageIndex == 0 ? 18 : 6,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: _heroCardPageIndex == 0 ? const Color(0xFF0052FF) : const Color(0xFFCBD5E1),
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+              const SizedBox(width: 5),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                width: _heroCardPageIndex == 1 ? 18 : 6,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: _heroCardPageIndex == 1 ? const Color(0xFF0052FF) : const Color(0xFFCBD5E1),
+                  borderRadius: BorderRadius.circular(99),
+                ),
               ),
             ],
           ),
-        ),
-        const SizedBox(height: 4),
-        // Dots Page Indicator
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              width: _heroCardPageIndex == 0 ? 18 : 6,
-              height: 5,
-              decoration: BoxDecoration(
-                color: _heroCardPageIndex == 0 ? const Color(0xFF0052FF) : const Color(0xFFCBD5E1),
-                borderRadius: BorderRadius.circular(99),
-              ),
-            ),
-            const SizedBox(width: 5),
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              width: _heroCardPageIndex == 1 ? 18 : 6,
-              height: 5,
-              decoration: BoxDecoration(
-                color: _heroCardPageIndex == 1 ? const Color(0xFF0052FF) : const Color(0xFFCBD5E1),
-                borderRadius: BorderRadius.circular(99),
-              ),
-            ),
-          ],
-        ),
       ],
     );
   }

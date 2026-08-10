@@ -6,7 +6,9 @@ import '../../../core/utils/api_client.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/date_formatter.dart';
+import '../../../core/utils/responsive_sheet.dart';
 import '../models/realisasi_model.dart';
+
 
 class RealisasiDetailSheet {
   static Future<void> show(
@@ -16,10 +18,9 @@ class RealisasiDetailSheet {
     List<RealisasiModel> riwayatRealisasi = const [],
     void Function(RealisasiModel)? onTapRiwayat,
   }) async {
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+    await showResponsiveSheet(
+      context,
+      maxDesktopWidth: 600,
       builder: (_) => _RealisasiDetailContent(
         detail: detail,
         title: title,
@@ -27,6 +28,7 @@ class RealisasiDetailSheet {
         onTapRiwayat: onTapRiwayat,
       ),
     );
+
   }
 
   static Widget _detailRow(String label, String value) => Padding(

@@ -8,6 +8,7 @@ import '../../../core/widgets/shimmer_loading.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../models/user_model.dart';
 import '../providers/master_provider.dart';
+import '../../../core/utils/responsive_sheet.dart';
 
 class UserScreen extends StatefulWidget {
   const UserScreen({super.key});
@@ -42,17 +43,10 @@ class _UserScreenState extends State<UserScreen> {
   Future<void> _openForm([UserModel? user]) async {
     await context.read<MasterProvider>().fetchPabrik();
     if (!mounted) return;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        decoration: const BoxDecoration(
-          color: _kPageBg,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: _UserForm(user: user),
-      ),
+    showResponsiveSheet(
+      context,
+      maxDesktopWidth: 520,
+      builder: (_) => _UserForm(user: user),
     );
   }
 
@@ -118,7 +112,12 @@ class _UserScreenState extends State<UserScreen> {
               child: Column(children: [
                 if (!isSelfOnly)
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+                    padding: EdgeInsets.fromLTRB(
+                      AppBreakpoints.isDesktop(context) ? 0 : 12,
+                      10,
+                      AppBreakpoints.isDesktop(context) ? 0 : 12,
+                      8,
+                    ),
                     child: Container(
                       decoration: BoxDecoration(
                         color: Colors.white,
@@ -209,7 +208,12 @@ class _UserScreenState extends State<UserScreen> {
                         );
                       }
                       return ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(12, 6, 12, 80),
+                        padding: EdgeInsets.fromLTRB(
+                          AppBreakpoints.isDesktop(context) ? 0 : 12,
+                          6,
+                          AppBreakpoints.isDesktop(context) ? 0 : 12,
+                          80,
+                        ),
                         itemCount: filteredUsers.length,
                         separatorBuilder: (_, __) => const SizedBox(height: 6),
                         itemBuilder: (_, i) {

@@ -6,7 +6,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/date_formatter.dart';
+import '../../../core/utils/responsive_sheet.dart';
 import '../../../core/widgets/app_notifier.dart';
+
 import '../models/checklist_hasil_model.dart';
 import '../models/realisasi_model.dart';
 import '../providers/jadwal_provider.dart';
@@ -368,14 +370,18 @@ class _RealisasiFormScreenState extends State<RealisasiFormScreen> {
         imageQuality: 80,
       );
       if (picked != null) {
+        final ext = picked.name.split('.').last.toLowerCase();
+        if (!_allowedImageExt.contains(ext)) {
+          if (mounted) {
+            AppNotifier.showWarning(context, 'Format gambar harus .jpg, .jpeg, .png, atau .webp');
+          }
+          return;
+        }
         final bytes = await picked.readAsBytes();
-        final normalized = await _normalizePickedImage(
-          bytes: bytes,
-          filename: picked.name,
-        );
+        final safeName = picked.name.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
         setState(() {
-          _imageBytes = normalized.$1;
-          _imageName = normalized.$2;
+          _imageBytes = bytes.toList();
+          _imageName = safeName.contains('.') ? safeName : '$safeName.$ext';
         });
       }
     } catch (e) {
@@ -386,44 +392,10 @@ class _RealisasiFormScreenState extends State<RealisasiFormScreen> {
     }
   }
 
-  Future<(List<int>, String)> _normalizePickedImage({
-    required List<int> bytes,
-    required String filename,
-  }) async {
-    final trimmed = filename.trim();
-    final dot = trimmed.lastIndexOf('.');
-    final base = dot > 0 ? trimmed.substring(0, dot) : trimmed;
-    final ext = dot > 0 ? trimmed.substring(dot + 1).toLowerCase() : '';
-
-    if (_allowedImageExt.contains(ext)) {
-      return (bytes, trimmed);
-    }
-
-    // Fallback untuk format kamera seperti HEIC/HEIF:
-    // decode lalu encode ke PNG agar lolos whitelist server.
-    try {
-      final codec = await ui.instantiateImageCodec(Uint8List.fromList(bytes));
-      final frame = await codec.getNextFrame();
-      final bd = await frame.image.toByteData(format: ui.ImageByteFormat.png);
-      if (bd != null) {
-        return (
-          bd.buffer.asUint8List(),
-          '${base.isEmpty ? 'realisasi' : base}.png'
-        );
-      }
-    } catch (_) {
-      // lanjut fallback di bawah
-    }
-
-    // Jika konversi gagal, gunakan nama jpg sebagai fallback agar konsisten
-    // dengan validasi FE+BE (best effort).
-    return (bytes, '${base.isEmpty ? 'realisasi' : base}.jpg');
-  }
-
   void _showImageSourceDialog() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
+    showResponsiveSheet(
+      context,
+      maxDesktopWidth: 420,
       builder: (_) => Container(
         decoration: const BoxDecoration(
           color: AppColors.surface,
@@ -1590,16 +1562,17 @@ class _TtdDialogState extends State<_TtdDialog> {
         }
       },
       child: Dialog(
-        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                 // header
                 Row(children: [
                   const Expanded(
@@ -1819,8 +1792,9 @@ class _TtdDialogState extends State<_TtdDialog> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }
 
 class _TtdSubmitData {

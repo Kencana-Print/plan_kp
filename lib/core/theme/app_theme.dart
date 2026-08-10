@@ -102,6 +102,36 @@ class AppBreakpoints {
     if (isTablet(context)) return tablet ?? mobile;
     return mobile;
   }
+
+  /// Padding horizontal konten utama per breakpoint.
+  /// Gunakan sebagai pengganti EdgeInsets statis di screen body.
+  static EdgeInsets contentPadding(BuildContext context, {
+    double mobileH = 12.0,
+    double tabletH = 20.0,
+    double desktopH = 32.0,
+    double mobileV = 8.0,
+    double tabletV = 12.0,
+    double desktopV = 16.0,
+  }) {
+    if (isDesktop(context)) {
+      return EdgeInsets.symmetric(horizontal: desktopH, vertical: desktopV);
+    }
+    if (isTablet(context)) {
+      return EdgeInsets.symmetric(horizontal: tabletH, vertical: tabletV);
+    }
+    return EdgeInsets.symmetric(horizontal: mobileH, vertical: mobileV);
+  }
+
+  /// Padding konten di dalam sheet/dialog responsif.
+  static EdgeInsets sheetContentPadding(BuildContext context) {
+    if (isDesktop(context)) {
+      return const EdgeInsets.fromLTRB(28, 16, 28, 32);
+    }
+    if (isTablet(context)) {
+      return const EdgeInsets.fromLTRB(24, 14, 24, 28);
+    }
+    return const EdgeInsets.fromLTRB(20, 12, 20, 24);
+  }
 }
 
 class AppSpacing {

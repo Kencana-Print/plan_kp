@@ -4,9 +4,11 @@ import 'package:provider/provider.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/date_formatter.dart';
+import '../../../core/utils/responsive_sheet.dart';
 import '../../../core/widgets/app_notifier.dart';
 import '../../../core/widgets/shimmer_loading.dart';
 import '../../jadwal/providers/jadwal_provider.dart';
+
 
 int _toInt(dynamic val) {
   if (val == null) return 0;
@@ -1206,13 +1208,11 @@ class _PenjadwalanDivisiCardState extends State<_PenjadwalanDivisiCard> {
 
   void _showJadwalSelectionSheet(
       BuildContext context, String jenisNama, List<dynamic> schedules) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
+    showResponsiveSheet(
+      context,
+      maxDesktopWidth: 520,
       builder: (context) {
+
         return SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(16),

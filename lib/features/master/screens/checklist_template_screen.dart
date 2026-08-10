@@ -6,6 +6,7 @@ import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/shimmer_loading.dart';
 import '../models/checklist_template_model.dart';
 import '../providers/master_provider.dart';
+import '../../../core/utils/responsive_sheet.dart';
 
 // ═══════════════════════════════════════════════════════════════
 //  CHECKLIST TEMPLATE SCREEN
@@ -43,19 +44,12 @@ class _ChecklistTemplateScreenState extends State<ChecklistTemplateScreen> {
 
   // ── buka form single item ──────────────────────────────────
   void _openSingleForm([ChecklistTemplateModel? item]) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        decoration: const BoxDecoration(
-          color: _kPageBg,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: _SingleItemForm(
-          item: item,
-          onSuccess: _showSuccess,
-        ),
+    showResponsiveSheet(
+      context,
+      maxDesktopWidth: 620,
+      builder: (_) => _SingleItemForm(
+        item: item,
+        onSuccess: _showSuccess,
       ),
     );
   }
@@ -81,21 +75,14 @@ class _ChecklistTemplateScreenState extends State<ChecklistTemplateScreen> {
       }
     }
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        decoration: const BoxDecoration(
-          color: _kPageBg,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: _BulkInputForm(
-          initialJenis: jenisLocked,
-          jenisLocked: jenisLocked != null,
-          existingItems: existing,
-          onSuccess: _showSuccess,
-        ),
+    showResponsiveSheet(
+      context,
+      maxDesktopWidth: 620,
+      builder: (_) => _BulkInputForm(
+        initialJenis: jenisLocked,
+        jenisLocked: jenisLocked != null,
+        existingItems: existing,
+        onSuccess: _showSuccess,
       ),
     );
   }
@@ -458,11 +445,8 @@ class _BulkInputFormState extends State<_BulkInputForm> {
       return !usedJenisIds.contains(j.jenisId);
     }).toList();
 
-    return DraggableScrollableSheet(
-      initialChildSize: 0.92,
-      maxChildSize: 0.95,
-      minChildSize: 0.5,
-      builder: (_, ctrl) => Container(
+    Widget buildContent(ScrollController? ctrl) {
+      return Container(
         decoration: const BoxDecoration(
           color: AppColors.bgGray,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -737,7 +721,17 @@ class _BulkInputFormState extends State<_BulkInputForm> {
             ]),
           ),
         ]),
-      ),
+      );
+    }
+
+    if (AppBreakpoints.isDesktop(context)) {
+      return buildContent(null);
+    }
+    return DraggableScrollableSheet(
+      initialChildSize: 0.92,
+      maxChildSize: 0.95,
+      minChildSize: 0.5,
+      builder: (_, c) => buildContent(c),
     );
   }
 }

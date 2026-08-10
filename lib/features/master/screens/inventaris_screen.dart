@@ -13,6 +13,7 @@ import '../models/jenis_model.dart';
 import '../providers/master_provider.dart';
 import '../widgets/jenis_lookup_sheet.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../../core/utils/responsive_sheet.dart';
 
 class InventarisScreen extends StatefulWidget {
   const InventarisScreen({super.key});
@@ -54,13 +55,9 @@ class _InventarisScreenState extends State<InventarisScreen> {
 
   void _showPabrikMultiSelectModal(
       BuildContext context, List<dynamic> pabrikList) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+    showResponsiveSheet(
+      context,
+      maxDesktopWidth: 560,
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setModalState) {
@@ -69,6 +66,10 @@ class _InventarisScreenState extends State<InventarisScreen> {
                     (p) => _selectedPabrikKodes.contains(p.pabKode));
 
             return Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
               padding: EdgeInsets.fromLTRB(
                 20,
                 16,
@@ -271,17 +272,10 @@ class _InventarisScreenState extends State<InventarisScreen> {
       }
     }
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        decoration: const BoxDecoration(
-          color: _kPageBg,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: _InventarisForm(item: item, initialJenisId: initialJenisId),
-      ),
+    showResponsiveSheet(
+      context,
+      maxDesktopWidth: 560,
+      builder: (_) => _InventarisForm(item: item, initialJenisId: initialJenisId),
     );
   }
 
@@ -597,7 +591,12 @@ class _InventarisScreenState extends State<InventarisScreen> {
 
                               return ListView.separated(
                                 physics: const BouncingScrollPhysics(),
-                                padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
+                                padding: EdgeInsets.fromLTRB(
+                                  AppBreakpoints.isDesktop(context) ? 0 : 16,
+                                  12,
+                                  AppBreakpoints.isDesktop(context) ? 0 : 16,
+                                  80,
+                                ),
                                 itemCount: jenisIds.length,
                                 separatorBuilder: (_, __) =>
                                     const SizedBox(height: 12),
@@ -1624,10 +1623,9 @@ class _InventarisFormState extends State<_InventarisForm> {
       return;
     }
 
-    final result = await showModalBottomSheet<JenisModel>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+    final result = await showResponsiveSheet<JenisModel>(
+      context,
+      maxDesktopWidth: 560,
       builder: (_) => JenisLookupSheet(
         items: allowedItems,
         initialId: _jenisId,

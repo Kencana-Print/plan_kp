@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/responsive_sheet.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../core/widgets/app_notifier.dart';
@@ -114,10 +115,9 @@ class _JadwalScreenState extends State<JadwalScreen> {
     final userDivisi = isManager ? null : (auth.user?['user_divisi'] ?? '');
     master.fetchUsers(divisi: userDivisi, showLoading: false);
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+    showResponsiveSheet(
+      context,
+      maxDesktopWidth: 620,
       builder: (_) => _JadwalForm(item: item),
     );
   }
@@ -132,10 +132,9 @@ class _JadwalScreenState extends State<JadwalScreen> {
     final userDivisi = isManager ? null : (auth.user?['user_divisi'] ?? '');
     master.fetchUsers(divisi: userDivisi, showLoading: false);
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+    showResponsiveSheet(
+      context,
+      maxDesktopWidth: 620,
       builder: (_) => AiJadwalWizardSheet(
         onOpenFullForm: (draftData) {
           final item = JadwalModel(
@@ -218,10 +217,9 @@ class _JadwalScreenState extends State<JadwalScreen> {
 
   void _showInventarisPicker(
       JadwalModel jadwal, List<Map<String, dynamic>> inventarisList) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+    showResponsiveSheet(
+      context,
+      maxDesktopWidth: 560,
       builder: (_) => InventarisPickerSheet(
         inventarisList: inventarisList,
         onSelected: (inv) => _openRealisasiFromInventaris(jadwal, inv),
@@ -1933,10 +1931,9 @@ class _JadwalFormState extends State<_JadwalForm> {
       return;
     }
 
-    final result = await showModalBottomSheet<JenisModel>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+    final result = await showResponsiveSheet<JenisModel>(
+      context,
+      maxDesktopWidth: 500,
       builder: (_) => JenisLookupSheet(
         items: availableJenis,
         initialId: _jenisId,
