@@ -1,11 +1,11 @@
 {
-    "name": "plan_kp",
-    "short_name": "plan_kp",
+    "name": "PlanKP",
+    "short_name": "PlanKP",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#285AC8",
+    "theme_color": "#285AC8",
+    "description": "Sistem Penjadwalan & Realisasi Pemeliharaan (PlanKP)",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
