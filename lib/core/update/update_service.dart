@@ -32,6 +32,9 @@ class UpdateService {
   /// - [force]: bypass throttle (misalnya dipanggil manual oleh user)
   /// Return null jika di-throttle atau versi sudah di-skip.
   Future<AppUpdateCheckResult?> checkForUpdate({bool force = false}) async {
+    // Pada Flutter Web, pengecekan APK update Android tidak diperlukan dan dilewati untuk menghindari CORS/Cross-Origin error
+    if (kIsWeb) return null;
+
     final now = DateTime.now();
 
     // Throttle: jangan cek jika belum lewat 1 jam (kecuali force)

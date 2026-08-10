@@ -35,8 +35,11 @@ class AuthProvider extends ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
-      final packageInfo = await PackageInfo.fromPlatform();
-      final String appVersion = '${packageInfo.version}+${packageInfo.buildNumber}';
+      String appVersion = '1.0.0+1';
+      try {
+        final packageInfo = await PackageInfo.fromPlatform();
+        appVersion = '${packageInfo.version}+${packageInfo.buildNumber}';
+      } catch (_) {}
 
       final res = await ApiClient.post(
         ApiConfig.login,
@@ -47,10 +50,18 @@ class AuthProvider extends ChangeNotifier {
         },
         auth: false,
       );
-      final token = res['data']['token'] as String;
-      _user = res['data']['user'];
-      await SecureStorageService.write(StorageKeys.token, token);
-      await SecureStorageService.write(StorageKeys.userData, jsonEncode(_user));
+
+      final data = res['data'] as Map<String, dynamic>? ?? {};
+      final token = (data['token'] ?? '').toString();
+      _user = data['user'] as Map<String, dynamic>?;
+
+      if (token.isNotEmpty) {
+        await SecureStorageService.write(StorageKeys.token, token);
+      }
+      if (_user != null) {
+        await SecureStorageService.write(StorageKeys.userData, jsonEncode(_user));
+      }
+
       _loading = false;
       notifyListeners();
       return true;
@@ -60,8 +71,8 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     } catch (e) {
-      if (kDebugMode) debugPrint('[Login Error] $e');
-      _error = 'Tidak dapat terhubung ke server';
+      debugPrint('[Login Exception] $e');
+      _error = e.toString().replaceFirst('Exception: ', '');
       _loading = false;
       notifyListeners();
       return false;
@@ -93,10 +104,17 @@ class AuthProvider extends ChangeNotifier {
         body,
         auth: false,
       );
-      final token = res['data']['token'] as String;
-      _user = res['data']['user'];
-      await SecureStorageService.write(StorageKeys.token, token);
-      await SecureStorageService.write(StorageKeys.userData, jsonEncode(_user));
+      final data = res['data'] as Map<String, dynamic>? ?? {};
+      final token = (data['token'] ?? '').toString();
+      _user = data['user'] as Map<String, dynamic>?;
+
+      if (token.isNotEmpty) {
+        await SecureStorageService.write(StorageKeys.token, token);
+      }
+      if (_user != null) {
+        await SecureStorageService.write(StorageKeys.userData, jsonEncode(_user));
+      }
+
       _loading = false;
       notifyListeners();
       return true;
@@ -106,8 +124,8 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     } catch (e) {
-      if (kDebugMode) debugPrint('[Register Error] $e');
-      _error = 'Tidak dapat terhubung ke server';
+      debugPrint('[Register Exception] $e');
+      _error = e.toString().replaceFirst('Exception: ', '');
       _loading = false;
       notifyListeners();
       return false;
