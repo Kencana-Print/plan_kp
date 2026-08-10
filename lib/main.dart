@@ -1,6 +1,6 @@
 // ignore_for_file: use_build_context_synchronously, unnecessary_cast
 
-import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -331,10 +331,11 @@ class _MainAppWrapperState extends State<MainAppWrapper> with WidgetsBindingObse
                     child: OutlinedButton(
                       onPressed: () async {
                         Navigator.of(ctx).pop();
-                        try {
-                          final f = File(filePath);
-                          if (await f.exists()) await f.delete();
-                        } catch (_) {}
+                        if (!kIsWeb) {
+                          try {
+                            await UpdateDownloader.deleteFile(filePath);
+                          } catch (_) {}
+                        }
                         // Download ulang dari awal
                         _showDownloadProgressDialog(manifest);
                       },

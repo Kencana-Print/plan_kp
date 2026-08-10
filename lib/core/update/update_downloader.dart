@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -27,11 +27,21 @@ class UpdateDownloader {
 
   UpdateDownloader({Dio? dio}) : _dio = dio ?? Dio();
 
+  /// Hapus file di path tertentu. Aman di Web (langsung return).
+  static Future<void> deleteFile(String filePath) async {
+    if (kIsWeb) return;
+    try {
+      final f = File(filePath);
+      if (await f.exists()) await f.delete();
+    } catch (_) {}
+  }
+
   // ─── Cek apakah APK versi tertentu sudah ada di storage lokal & valid ───
   Future<String?> checkLocalApk({
     required String downloadUrl,
     required String versionName,
   }) async {
+    if (kIsWeb) return null;
     try {
       final fileName = _resolveFileName(downloadUrl, versionName);
       final dirs = await _getCandidateDirectories();
@@ -109,6 +119,9 @@ class UpdateDownloader {
     required String versionName,
     void Function(int percent)? onProgress,
   }) async {
+    if (kIsWeb) {
+      return const AppUpdateDownloadResult(status: AppUpdateDownloadStatus.failedOther);
+    }
     // Langkah 1: Cek apakah file sudah ada & valid di lokal
     final existingPath = await checkLocalApk(
       downloadUrl: downloadUrl,

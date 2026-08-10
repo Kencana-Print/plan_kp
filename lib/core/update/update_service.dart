@@ -119,6 +119,7 @@ class UpdateService {
     required String downloadUrl,
     required String versionName,
   }) {
+    if (kIsWeb) return Future.value(null);
     return _downloader.checkLocalApk(
       downloadUrl: downloadUrl,
       versionName: versionName,
@@ -132,6 +133,11 @@ class UpdateService {
     required AppUpdateManifest manifest,
     void Function(int percent)? onProgress,
   }) {
+    if (kIsWeb) {
+      return Future.value(const AppUpdateDownloadResult(
+        status: AppUpdateDownloadStatus.failedOther,
+      ));
+    }
     return _downloader.downloadAndInstall(
       downloadUrl: manifest.url,
       versionName: manifest.version,
