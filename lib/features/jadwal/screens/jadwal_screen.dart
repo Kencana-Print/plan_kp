@@ -926,10 +926,67 @@ class _JadwalScreenState extends State<JadwalScreen> {
                                   ? 'Tidak ada jadwal $_selectedFrekuensi yang aktif'
                                   : 'Belum ada jadwal yang aktif')),
                     )
-                  else
-                    SliverPadding(
+                  else () {
+                    final isMobile = AppBreakpoints.isMobile(context);
+                    if (isMobile) {
+                      return SliverPadding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        sliver: SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                            (context, i) {
+                              final item = filtered[i];
+                              final master = context.read<MasterProvider>();
+                              final jenisNama =
+                                  (item.jdwInvJenis ?? '').trim().isNotEmpty
+                                      ? item.jdwInvJenis!.trim()
+                                      : master
+                                              .jenisById(item.jdwJenisId)
+                                              ?.jenisNama ??
+                                          'Jenis tidak diketahui';
+                              final pabrikLabel = item.jdwPabrikList.isEmpty
+                                  ? null
+                                  : item.jdwPabrikList
+                                      .map((c) => master.displayPabrik(c))
+                                      .join(', ');
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: _JadwalCard(
+                                  jadwal: item,
+                                  jenisNama: jenisNama,
+                                  pabrikLabel: pabrikLabel,
+                                  isAdmin: isAdmin,
+                                  isUser: isUser,
+                                  onTap: () => _openJadwalDetail(item),
+                                  onRealisasi: () => _handleRealisasiTap(item),
+                                  onEdit: () => _openForm(item),
+                                  onDelete: () =>
+                                      _confirmSelesaikanJadwal(item),
+                                  onStatusChange: (st) => context
+                                      .read<JadwalProvider>()
+                                      .updateStatusJadwal(item.jdwId, st),
+                                ),
+                              );
+                            },
+                            childCount: filtered.length,
+                          ),
+                        ),
+                      );
+                    }
+                    final columns = AppBreakpoints.gridColumns(
+                      context,
+                      mobile: 1,
+                      tablet: 2,
+                      desktop: 2,
+                    );
+                    return SliverPadding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      sliver: SliverList(
+                      sliver: SliverGrid(
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: columns,
+                          mainAxisSpacing: 10,
+                          crossAxisSpacing: 10,
+                          mainAxisExtent: 225,
+                        ),
                         delegate: SliverChildBuilderDelegate(
                           (context, i) {
                             final item = filtered[i];
@@ -946,29 +1003,27 @@ class _JadwalScreenState extends State<JadwalScreen> {
                                 : item.jdwPabrikList
                                     .map((c) => master.displayPabrik(c))
                                     .join(', ');
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: _JadwalCard(
-                                jadwal: item,
-                                jenisNama: jenisNama,
-                                pabrikLabel: pabrikLabel,
-                                isAdmin: isAdmin,
-                                isUser: isUser,
-                                onTap: () => _openJadwalDetail(item),
-                                onRealisasi: () => _handleRealisasiTap(item),
-                                onEdit: () => _openForm(item),
-                                onDelete: () =>
-                                    _confirmSelesaikanJadwal(item),
-                                onStatusChange: (st) => context
-                                    .read<JadwalProvider>()
-                                    .updateStatusJadwal(item.jdwId, st),
-                              ),
+                            return _JadwalCard(
+                              jadwal: item,
+                              jenisNama: jenisNama,
+                              pabrikLabel: pabrikLabel,
+                              isAdmin: isAdmin,
+                              isUser: isUser,
+                              onTap: () => _openJadwalDetail(item),
+                              onRealisasi: () => _handleRealisasiTap(item),
+                              onEdit: () => _openForm(item),
+                              onDelete: () =>
+                                  _confirmSelesaikanJadwal(item),
+                              onStatusChange: (st) => context
+                                  .read<JadwalProvider>()
+                                  .updateStatusJadwal(item.jdwId, st),
                             );
                           },
                           childCount: filtered.length,
                         ),
                       ),
-                    ),
+                    );
+                  }(),
                   const SliverToBoxAdapter(child: SizedBox(height: 100)),
                 ],
               ),

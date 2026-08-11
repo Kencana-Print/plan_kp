@@ -11,13 +11,15 @@ Future<T?> showResponsiveSheet<T>(
   bool isScrollControlled = true,
   bool barrierDismissible = true,
 }) {
-  if (AppBreakpoints.isDesktop(context)) {
+  if (!AppBreakpoints.isMobile(context)) {
     return showDialog<T>(
       context: context,
       barrierDismissible: barrierDismissible,
       builder: (ctx) => Dialog(
-        insetPadding:
-            const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
+        insetPadding: EdgeInsets.symmetric(
+          horizontal: AppBreakpoints.isTablet(ctx) ? 24 : 32,
+          vertical: AppBreakpoints.isTablet(ctx) ? 36 : 48,
+        ),
         backgroundColor: Colors.transparent,
         child: ConstrainedBox(
           constraints: BoxConstraints(
@@ -33,7 +35,7 @@ Future<T?> showResponsiveSheet<T>(
     );
   }
 
-  // Mobile & Tablet: tetap pakai BottomSheet seperti semula
+  // Mobile (< 600px): tetap pakai BottomSheet standar
   return showModalBottomSheet<T>(
     context: context,
     isScrollControlled: isScrollControlled,

@@ -9,8 +9,6 @@ import '../models/realisasi_model.dart';
 // ─── Warna korporat ────────────────────────────────────────────────────────
 class _C {
   static const primary    = PdfColor.fromInt(0xFF0D3B6E);
-  static const accent     = PdfColor.fromInt(0xFF1976D2);
-  static const accentBg   = PdfColor.fromInt(0xFFE3F2FD);
   static const good       = PdfColor.fromInt(0xFF1B5E20);
   static const goodBg     = PdfColor.fromInt(0xFFE8F5E9);
   static const warn       = PdfColor.fromInt(0xFFE65100);
@@ -201,7 +199,7 @@ class PdfReportService {
                     children: [
                       pw.Text(
                         'Realisasi: $totalRealisasi Unit  |  Target: $targetVal Unit',
-                        style: pw.TextStyle(
+                        style: const pw.TextStyle(
                             fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: _C.textDark),
                       ),
                       pw.SizedBox(height: 3),
@@ -266,7 +264,7 @@ class PdfReportService {
                       crossAxisAlignment: pw.CrossAxisAlignment.start,
                       children: [
                         pw.Text('${e.key + 1}. ',
-                            style: pw.TextStyle(
+                            style: const pw.TextStyle(
                                 fontSize: 7.5,
                                 fontWeight: pw.FontWeight.bold,
                                 color: _C.amber)),
@@ -276,7 +274,7 @@ class PdfReportService {
                               style: const pw.TextStyle(fontSize: 7.5, color: _C.textDark),
                               children: [
                                 pw.TextSpan(text: '$invNama ($kode) ',
-                                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                                    style: const pw.TextStyle(fontWeight: pw.FontWeight.bold)),
                                 pw.TextSpan(
                                     text: '[$kondisi] ',
                                     style: pw.TextStyle(
@@ -335,12 +333,12 @@ class PdfReportService {
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
                   pw.Text('CV. KENCANA PRINT',
-                      style: pw.TextStyle(
+                      style: const pw.TextStyle(
                           fontSize: 12, fontWeight: pw.FontWeight.bold, color: _C.primary)),
                   pw.Text('Aplikasi Mobile PlanKP | Sistem Penjadwalan Maintenance Kencana Print',
                       style: const pw.TextStyle(fontSize: 7.5, color: _C.textMid)),
                   pw.Text('LAPORAN HASIL REALISASI MAINTENANCE',
-                      style: pw.TextStyle(
+                      style: const pw.TextStyle(
                           fontSize: 9, fontWeight: pw.FontWeight.bold, color: _C.textDark)),
                 ],
               ),
@@ -373,7 +371,7 @@ class PdfReportService {
             pw.Text('CV. Kencana Print | Aplikasi Mobile PlanKP',
                 style: const pw.TextStyle(fontSize: 6.5, color: _C.textLight)),
             pw.Text('Halaman ${ctx.pageNumber} dari ${ctx.pagesCount}',
-                style: pw.TextStyle(
+                style: const pw.TextStyle(
                     fontSize: 7, fontWeight: pw.FontWeight.bold, color: _C.primary)),
           ],
         ),
@@ -402,7 +400,7 @@ class PdfReportService {
   // ── LABEL SEKSI ──────────────────────────────────────────────────────────
   static pw.Widget _sectionLabel(String text) => pw.Text(
         text,
-        style: pw.TextStyle(
+        style: const pw.TextStyle(
             fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: _C.primary),
       );
 
@@ -449,7 +447,7 @@ class PdfReportService {
               alignment: pw.Alignment.center,
               child: pw.Text(
                 h,
-                style: pw.TextStyle(
+                style: const pw.TextStyle(
                   fontSize: 7.5,
                   fontWeight: pw.FontWeight.bold,
                   color: _C.white,

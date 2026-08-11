@@ -751,170 +751,49 @@ class _RealisasiHistoryScreenState extends State<RealisasiHistoryScreen> {
                             ),
                           ),
                         )
-                      else
-                        SliverPadding(
+                      else () {
+                        final isMobile = AppBreakpoints.isMobile(context);
+                        if (isMobile) {
+                          return SliverPadding(
+                            padding: EdgeInsets.fromLTRB(
+                                horizontalPadding, 8, horizontalPadding, 100),
+                            sliver: SliverList(
+                              delegate: SliverChildBuilderDelegate(
+                                (context, index) {
+                                  final item = _draftRealisasiList[index];
+                                  return _buildDraftCard(context, item, isAdmin);
+                                },
+                                childCount: _draftRealisasiList.length,
+                              ),
+                            ),
+                          );
+                        }
+                        final columns = AppBreakpoints.gridColumns(
+                          context,
+                          mobile: 1,
+                          tablet: 2,
+                          desktop: 2,
+                        );
+                        return SliverPadding(
                           padding: EdgeInsets.fromLTRB(
                               horizontalPadding, 8, horizontalPadding, 100),
-                          sliver: SliverList(
+                          sliver: SliverGrid(
+                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: columns,
+                              mainAxisSpacing: 12,
+                              crossAxisSpacing: 12,
+                              mainAxisExtent: isAdmin ? 220 : 185,
+                            ),
                             delegate: SliverChildBuilderDelegate(
                               (context, index) {
                                 final item = _draftRealisasiList[index];
-                                final title = (item.jadwal?['jdw_judul'] ?? '')
-                                    .toString()
-                                    .trim();
-                                final tglString = DateFormatter.toDisplay(item.realTgl);
-                                final jamMulai = item.realJamMulai ?? '-';
-                                final invNama = item.invNama ?? '-';
-                                final jdwId = item.realJadwalId;
-                                final invJenisId = item.jadwal?['jdw_inv_jenis_id'] ?? 0;
-                                final invId = item.realInvId;
-                                final teknisi = (item.teknisi?['user_nama'] ?? '').toString().trim();
-                                final kondisiAkhir = item.realKondisiAkhir ?? '-';
-                                final keterangan = item.realKeterangan ?? '-';
-
-                                return Card(
-                                  margin: const EdgeInsets.only(bottom: 12),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(AppRadius.lg),
-                                    side: BorderSide(
-                                        color: AppColors.border.withValues(alpha: 0.8)),
-                                  ),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(16),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(
-                                                  horizontal: 8, vertical: 4),
-                                              decoration: BoxDecoration(
-                                                color: AppColors.warning
-                                                    .withValues(alpha: 0.1),
-                                                borderRadius:
-                                                    BorderRadius.circular(AppRadius.sm),
-                                              ),
-                                              child: const Text(
-                                                'Menunggu TTD PIC',
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: AppColors.warning,
-                                                ),
-                                              ),
-                                            ),
-                                            Text(
-                                              tglString,
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                                color: AppColors.textSecondary,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 12),
-                                        Text(
-                                          title.isEmpty
-                                              ? 'Jadwal #$jdwId'
-                                              : title,
-                                          style: const TextStyle(
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w700,
-                                            color: AppColors.textPrimary,
-                                          ),
-                                        ),
-                                        if (isAdmin) ...[
-                                          const SizedBox(height: 8),
-                                          const Divider(height: 1, color: AppColors.border),
-                                          const SizedBox(height: 8),
-                                          _buildDetailRow(Icons.person_outline_rounded, 'Teknisi', teknisi.isEmpty ? '-' : teknisi),
-                                          _buildDetailRow(Icons.inventory_2_outlined, 'Aset', invNama),
-                                          _buildDetailRow(Icons.access_time_rounded, 'Jam', jamMulai),
-                                          _buildDetailRow(Icons.info_outline_rounded, 'Kondisi Akhir', kondisiAkhir),
-                                          _buildDetailRow(Icons.description_outlined, 'Keterangan', keterangan),
-                                        ] else ...[
-                                          const SizedBox(height: 8),
-                                          Row(
-                                            children: [
-                                              const Icon(Icons.inventory_2_outlined,
-                                                  size: 14,
-                                                  color: AppColors.textSecondary),
-                                              const SizedBox(width: 6),
-                                              Expanded(
-                                                child: Text(
-                                                  'Aset: $invNama',
-                                                  style: const TextStyle(
-                                                      fontSize: 13,
-                                                      color: AppColors.textSecondary),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Row(
-                                            children: [
-                                              const Icon(Icons.access_time,
-                                                  size: 14,
-                                                  color: AppColors.textSecondary),
-                                              const SizedBox(width: 6),
-                                              Text(
-                                                'Jam Mulai: $jamMulai',
-                                                style: const TextStyle(
-                                                    fontSize: 13,
-                                                    color: AppColors.textSecondary),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 16),
-                                          SizedBox(
-                                            width: double.infinity,
-                                            child: ElevatedButton.icon(
-                                              onPressed: () async {
-                                                await Navigator.pushNamed(
-                                                  context,
-                                                  AppRoutes.realisasiForm,
-                                                  arguments: {
-                                                    'realId': item.realId,
-                                                    'jadwalId': jdwId,
-                                                    'invJenisId': invJenisId,
-                                                    'invId': invId,
-                                                    'invNama': invNama,
-                                                  },
-                                                );
-                                                _loadData();
-                                              },
-                                              style: ElevatedButton.styleFrom(
-                                                backgroundColor: AppColors.primary,
-                                                padding: const EdgeInsets.symmetric(
-                                                    vertical: 12),
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(10),
-                                                ),
-                                              ),
-                                              icon: const Icon(Icons.border_color,
-                                                  size: 16),
-                                              label: const Text(
-                                                'Lanjutkan & TTD PIC',
-                                                style: TextStyle(
-                                                    fontSize: 13,
-                                                    fontWeight: FontWeight.bold),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                );
+                                return _buildDraftCard(context, item, isAdmin);
                               },
                               childCount: _draftRealisasiList.length,
                             ),
                           ),
-                        ),
+                        );
+                      }(),
                     ],
                   ],
                 ),
@@ -1039,6 +918,138 @@ class _RealisasiHistoryScreenState extends State<RealisasiHistoryScreen> {
     }).toList();
 
     return _MonthlyRecapData(groups: groups);
+  }
+
+  Widget _buildDraftCard(BuildContext context, RealisasiModel item, bool isAdmin) {
+    final title = (item.jadwal?['jdw_judul'] ?? '').toString().trim();
+    final tglString = DateFormatter.toDisplay(item.realTgl);
+    final jamMulai = item.realJamMulai ?? '-';
+    final invNama = item.invNama ?? '-';
+    final jdwId = item.realJadwalId;
+    final invJenisId = item.jadwal?['jdw_inv_jenis_id'] ?? 0;
+    final invId = item.realInvId;
+    final teknisi = (item.teknisi?['user_nama'] ?? '').toString().trim();
+    final kondisiAkhir = item.realKondisiAkhir ?? '-';
+    final keterangan = item.realKeterangan ?? '-';
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        side: BorderSide(color: AppColors.border.withValues(alpha: 0.8)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.warning.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                  ),
+                  child: const Text(
+                    'Menunggu TTD PIC',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.warning,
+                    ),
+                  ),
+                ),
+                Text(
+                  tglString,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              title.isEmpty ? 'Jadwal #$jdwId' : title,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            if (isAdmin) ...[
+              const SizedBox(height: 8),
+              const Divider(height: 1, color: AppColors.border),
+              const SizedBox(height: 8),
+              _buildDetailRow(Icons.person_outline_rounded, 'Teknisi', teknisi.isEmpty ? '-' : teknisi),
+              _buildDetailRow(Icons.inventory_2_outlined, 'Aset', invNama),
+              _buildDetailRow(Icons.access_time_rounded, 'Jam', jamMulai),
+              _buildDetailRow(Icons.info_outline_rounded, 'Kondisi Akhir', kondisiAkhir),
+              _buildDetailRow(Icons.description_outlined, 'Keterangan', keterangan),
+            ] else ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.inventory_2_outlined, size: 14, color: AppColors.textSecondary),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Aset: $invNama',
+                      style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  const Icon(Icons.access_time, size: 14, color: AppColors.textSecondary),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Jam Mulai: $jamMulai',
+                    style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    await Navigator.pushNamed(
+                      context,
+                      AppRoutes.realisasiForm,
+                      arguments: {
+                        'realId': item.realId,
+                        'jadwalId': jdwId,
+                        'invJenisId': invJenisId,
+                        'invId': invId,
+                        'invNama': invNama,
+                      },
+                    );
+                    _loadData();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  icon: const Icon(Icons.border_color, size: 16),
+                  label: const Text(
+                    'Lanjutkan & TTD PIC',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 
   _MonthlyHistoryMetrics _buildMonthlyMetrics({

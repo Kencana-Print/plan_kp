@@ -207,162 +207,188 @@ class _UserScreenState extends State<UserScreen> {
                           onAction: isSelfOnly ? null : () => _openForm(),
                         );
                       }
-                      return ListView.separated(
-                        padding: EdgeInsets.fromLTRB(
-                          AppBreakpoints.isDesktop(context) ? 0 : 12,
-                          6,
-                          AppBreakpoints.isDesktop(context) ? 0 : 12,
-                          80,
-                        ),
-                        itemCount: filteredUsers.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 6),
-                        itemBuilder: (_, i) {
-                          final user = filteredUsers[i];
-                          final isCurrentUser =
-                              authUserId != null && authUserId == user.userId;
-                          final isToggling =
-                              _togglingUserIds.contains(user.userId);
-                          return Container(
-                            margin: EdgeInsets.zero,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(AppRadius.md),
-                              border: Border.all(
-                                  color:
-                                      AppColors.border.withValues(alpha: 0.6)),
-                              boxShadow: [
-                                BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.02),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2)),
-                              ],
-                            ),
-                            child: ListTile(
-                              contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 4),
-                              leading: Container(
-                                width: 36,
-                                height: 36,
-                                decoration: BoxDecoration(
-                                  color:
-                                      AppColors.primary.withValues(alpha: 0.08),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    user.userNama.isNotEmpty
-                                        ? user.userNama[0].toUpperCase()
-                                        : 'U',
-                                    style: const TextStyle(
-                                      color: AppColors.primary,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 14,
-                                    ),
+                      final isMobile = AppBreakpoints.isMobile(context);
+                      final columns = AppBreakpoints.gridColumns(
+                        context,
+                        mobile: 1,
+                        tablet: 2,
+                        desktop: 3,
+                      );
+
+                      Widget buildUserCard(UserModel user) {
+                        final isCurrentUser =
+                            authUserId != null && authUserId == user.userId;
+                        final isToggling =
+                            _togglingUserIds.contains(user.userId);
+                        return Container(
+                          margin: EdgeInsets.zero,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(AppRadius.md),
+                            border: Border.all(
+                                color:
+                                    AppColors.border.withValues(alpha: 0.6)),
+                            boxShadow: [
+                              BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.02),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2)),
+                            ],
+                          ),
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 4),
+                            leading: Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color:
+                                    AppColors.primary.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  user.userNama.isNotEmpty
+                                      ? user.userNama[0].toUpperCase()
+                                      : 'U',
+                                  style: const TextStyle(
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14,
                                   ),
                                 ),
                               ),
-                              title: Text(
-                                user.userNama,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 13.5,
-                                  color: AppColors.textPrimary,
-                                ),
+                            ),
+                            title: Text(
+                              user.userNama,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13.5,
+                                color: AppColors.textPrimary,
                               ),
-                              subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      'NIK: ${user.userNik}',
-                                      style: const TextStyle(
-                                        fontSize: 11.5,
-                                        color: AppColors.textSecondary,
-                                        fontWeight: FontWeight.w500,
-                                      ),
+                            ),
+                            subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'NIK: ${user.userNik}',
+                                    style: const TextStyle(
+                                      fontSize: 11.5,
+                                      color: AppColors.textSecondary,
+                                      fontWeight: FontWeight.w500,
                                     ),
-                                    const SizedBox(height: 6),
-                                    Wrap(
-                                      spacing: 6,
-                                      runSpacing: 4,
-                                      crossAxisAlignment:
-                                          WrapCrossAlignment.center,
-                                      children: [
-                                        _JabatanBadge(user.jabatanLabel),
-                                        if (user.userDivisi.isNotEmpty)
-                                          Builder(builder: (context) {
-                                            final divColor = AppDivisiColors.getColor(user.userDivisi);
-                                            final divIcon = AppDivisiColors.getIcon(user.userDivisi);
-                                            return Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                                              decoration: BoxDecoration(
-                                                color: divColor.withValues(alpha: 0.12),
-                                                borderRadius: BorderRadius.circular(8),
-                                              ),
-                                              child: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Icon(divIcon, size: 11, color: divColor),
-                                                  const SizedBox(width: 3),
-                                                  Text(
-                                                    user.userDivisi.toUpperCase(),
-                                                    style: TextStyle(
-                                                      fontSize: 11,
-                                                      fontWeight: FontWeight.w700,
-                                                      color: divColor,
-                                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Wrap(
+                                    spacing: 6,
+                                    runSpacing: 4,
+                                    crossAxisAlignment:
+                                        WrapCrossAlignment.center,
+                                    children: [
+                                      _JabatanBadge(user.jabatanLabel),
+                                      if (user.userDivisi.isNotEmpty)
+                                        Builder(builder: (context) {
+                                          final divColor = AppDivisiColors.getColor(user.userDivisi);
+                                          final divIcon = AppDivisiColors.getIcon(user.userDivisi);
+                                          return Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: divColor.withValues(alpha: 0.12),
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(divIcon, size: 11, color: divColor),
+                                                const SizedBox(width: 3),
+                                                Text(
+                                                  user.userDivisi.toUpperCase(),
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: divColor,
                                                   ),
-                                                ],
-                                              ),
-                                            );
-                                          }),
-                                        if (isCurrentUser) const _SelfBadge(),
-                                        _StatusBadge(isActive: user.aktif),
-                                        if (user.userCabang != null)
-                                          Padding(
-                                            padding:
-                                                const EdgeInsets.only(left: 2),
-                                            child: Text(
-                                              p.displayPabrik(user.userCabang),
-                                              style: const TextStyle(
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w700,
-                                                color: AppColors.textSecondary,
-                                              ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        }),
+                                      if (isCurrentUser) const _SelfBadge(),
+                                      _StatusBadge(isActive: user.aktif),
+                                      if (user.userCabang != null)
+                                        Padding(
+                                          padding:
+                                              const EdgeInsets.only(left: 2),
+                                          child: Text(
+                                            p.displayPabrik(user.userCabang),
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w700,
+                                              color: AppColors.textSecondary,
                                             ),
                                           ),
-                                      ],
-                                    ),
-                                  ]),
-                              trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    if (!isSelfOnly && !isCurrentUser)
-                                      _MinimalSwitch(
-                                        value: user.aktif,
-                                        loading: isToggling,
-                                        onChanged: () =>
-                                            _toggleUserStatus(p, user),
-                                      ),
-                                    const SizedBox(width: 4),
-                                    IconButton(
-                                      icon: const Icon(Icons.edit_rounded,
-                                          size: 18, color: AppColors.warning),
-                                      onPressed: () => _openForm(user),
-                                      style: IconButton.styleFrom(
-                                        backgroundColor: AppColors.warning
-                                            .withValues(alpha: 0.08),
-                                        padding: const EdgeInsets.all(8),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(10),
                                         ),
+                                    ],
+                                  ),
+                                ]),
+                            trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (!isSelfOnly && !isCurrentUser)
+                                    _MinimalSwitch(
+                                      value: user.aktif,
+                                      loading: isToggling,
+                                      onChanged: () =>
+                                          _toggleUserStatus(p, user),
+                                    ),
+                                  const SizedBox(width: 4),
+                                  IconButton(
+                                    icon: const Icon(Icons.edit_rounded,
+                                        size: 18, color: AppColors.warning),
+                                    onPressed: () => _openForm(user),
+                                    style: IconButton.styleFrom(
+                                      backgroundColor: AppColors.warning
+                                          .withValues(alpha: 0.08),
+                                      padding: const EdgeInsets.all(8),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(10),
                                       ),
                                     ),
-                                  ]),
-                            ),
-                          );
-                        },
+                                  ),
+                                ]),
+                          ),
+                        );
+                      }
+
+                      if (isMobile) {
+                        return ListView.separated(
+                          padding: EdgeInsets.fromLTRB(
+                            AppBreakpoints.isDesktop(context) ? 0 : 12,
+                            6,
+                            AppBreakpoints.isDesktop(context) ? 0 : 12,
+                            80,
+                          ),
+                          itemCount: filteredUsers.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 6),
+                          itemBuilder: (_, i) => buildUserCard(filteredUsers[i]),
+                        );
+                      }
+
+                      return GridView.builder(
+                        physics: const BouncingScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(0, 8, 0, 80),
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: columns,
+                          mainAxisSpacing: 10,
+                          crossAxisSpacing: 10,
+                          mainAxisExtent: 118,
+                        ),
+                        itemCount: filteredUsers.length,
+                        itemBuilder: (_, i) => buildUserCard(filteredUsers[i]),
                       );
                     },
                   ),

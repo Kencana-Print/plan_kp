@@ -326,7 +326,12 @@ class _InventarisScreenState extends State<InventarisScreen> {
                   child: Column(
                     children: [
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+                        padding: EdgeInsets.fromLTRB(
+                          AppBreakpoints.isDesktop(context) ? 0 : 12,
+                          10,
+                          AppBreakpoints.isDesktop(context) ? 0 : 12,
+                          4,
+                        ),
                         child: Row(
                           children: [
                             Expanded(
@@ -490,7 +495,7 @@ class _InventarisScreenState extends State<InventarisScreen> {
                           child: (!p.loading && displayList.isNotEmpty)
                               ? Container(
                                   color: const Color(0xFFF8FAFC),
-                                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                                  padding: const EdgeInsets.fromLTRB(16, 2, 16, 4),
                                   child: Row(children: [
                                     Text(
                                       '${displayList.map((e) => e.invJenisId).toSet().length} jenis · ${displayList.length} inventaris',
@@ -559,19 +564,38 @@ class _InventarisScreenState extends State<InventarisScreen> {
                             key: ValueKey<String>('list_${_selectedPabrikKodes.join(",")}_${_search.text}'),
                             child: () {
                               if (p.loading) {
-                                return const AppShimmer(
-                                  child: SingleChildScrollView(
-                                    physics: NeverScrollableScrollPhysics(),
-                                    padding: EdgeInsets.only(top: 8),
-                                    child: Column(
-                                      children: [
-                                        AppSkeletonFolderCard(),
-                                        AppSkeletonFolderCard(),
-                                        AppSkeletonFolderCard(),
-                                      ],
+                                final isMobile = AppBreakpoints.isMobile(context);
+                                if (isMobile) {
+                                  return const AppShimmer(
+                                    child: SingleChildScrollView(
+                                      physics: NeverScrollableScrollPhysics(),
+                                      padding: EdgeInsets.only(top: 4),
+                                      child: Column(
+                                        children: [
+                                          AppSkeletonFolderCard(),
+                                          AppSkeletonFolderCard(),
+                                          AppSkeletonFolderCard(),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                );
+                                  );
+                                } else {
+                                  final cols = AppBreakpoints.gridColumns(context, mobile: 1, tablet: 2, desktop: 2);
+                                  return AppShimmer(
+                                    child: GridView.builder(
+                                      physics: const NeverScrollableScrollPhysics(),
+                                      padding: const EdgeInsets.only(top: 4),
+                                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                        crossAxisCount: cols,
+                                        mainAxisSpacing: 12,
+                                        crossAxisSpacing: 12,
+                                        mainAxisExtent: 140,
+                                      ),
+                                      itemCount: 4,
+                                      itemBuilder: (_, __) => const AppSkeletonFolderCard(),
+                                    ),
+                                  );
+                                }
                               }
                               if (displayList.isEmpty) {
                                 return EmptyState(
@@ -589,50 +613,95 @@ class _InventarisScreenState extends State<InventarisScreen> {
                               }
                               final jenisIds = grouped.keys.toList()..sort();
 
-                              return ListView.separated(
-                                physics: const BouncingScrollPhysics(),
-                                padding: EdgeInsets.fromLTRB(
-                                  AppBreakpoints.isDesktop(context) ? 0 : 16,
-                                  12,
-                                  AppBreakpoints.isDesktop(context) ? 0 : 16,
-                                  80,
-                                ),
-                                itemCount: jenisIds.length,
-                                separatorBuilder: (_, __) =>
-                                    const SizedBox(height: 12),
-                                itemBuilder: (_, i) {
-                                  final jenisId = jenisIds[i];
-                                  final items = grouped[jenisId]!;
-                                  final firstItem = items.first;
-                                  final jenisNama =
-                                      p.jenisById(jenisId)?.jenisNama ??
-                                          'Jenis #$jenisId';
-                                  final kategoriLabel =
-                                      p.kategoriByJenisId(jenisId) ??
-                                          firstItem.invKategori;
-                                  final expanded =
-                                      _expandedJenisIds.contains(jenisId);
+                              final isMobile = AppBreakpoints.isMobile(context);
+                              if (isMobile) {
+                                return ListView.separated(
+                                  physics: const BouncingScrollPhysics(),
+                                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 80),
+                                  itemCount: jenisIds.length,
+                                  separatorBuilder: (_, __) =>
+                                      const SizedBox(height: 12),
+                                  itemBuilder: (_, i) {
+                                    final jenisId = jenisIds[i];
+                                    final items = grouped[jenisId]!;
+                                    final firstItem = items.first;
+                                    final jenisNama =
+                                        p.jenisById(jenisId)?.jenisNama ??
+                                            'Jenis #$jenisId';
+                                    final kategoriLabel =
+                                        p.kategoriByJenisId(jenisId) ??
+                                            firstItem.invKategori;
+                                    final expanded =
+                                        _expandedJenisIds.contains(jenisId);
 
-                                  return _InventarisGroupCard(
-                                    jenisId: jenisId,
-                                    jenisNama: jenisNama,
-                                    kategoriLabel: kategoriLabel,
-                                    items: items,
-                                    expanded: expanded,
-                                    onToggle: () {
-                                      setState(() {
-                                        if (expanded) {
-                                          _expandedJenisIds.remove(jenisId);
-                                        } else {
-                                          _expandedJenisIds.add(jenisId);
-                                        }
-                                      });
-                                    },
-                                    pabrikLabelBuilder: p.displayPabrik,
-                                    onEditItem: _openForm,
-                                    onAddItem: (jId) => _openForm(null, jId),
-                                  );
-                                },
+                                    return _InventarisGroupCard(
+                                      jenisId: jenisId,
+                                      jenisNama: jenisNama,
+                                      kategoriLabel: kategoriLabel,
+                                      items: items,
+                                      expanded: expanded,
+                                      onToggle: () {
+                                        setState(() {
+                                          if (expanded) {
+                                            _expandedJenisIds.remove(jenisId);
+                                          } else {
+                                            _expandedJenisIds.add(jenisId);
+                                          }
+                                        });
+                                      },
+                                      pabrikLabelBuilder: p.displayPabrik,
+                                      onEditItem: _openForm,
+                                      onAddItem: (jId) => _openForm(null, jId),
+                                    );
+                                  },
+                                );
+                              }
+
+                              final columns = AppBreakpoints.gridColumns(context, mobile: 1, tablet: 2, desktop: 2);
+                              final cardWidth = (maxContentWidth - (12 * (columns - 1))) / columns;
+
+                              return SingleChildScrollView(
+                                physics: const BouncingScrollPhysics(),
+                                padding: const EdgeInsets.fromLTRB(0, 6, 0, 80),
+                                child: Wrap(
+                                  spacing: 12,
+                                  runSpacing: 12,
+                                  children: jenisIds.map((jenisId) {
+                                    final items = grouped[jenisId]!;
+                                    final firstItem = items.first;
+                                    final jenisNama =
+                                        p.jenisById(jenisId)?.jenisNama ??
+                                            'Jenis #$jenisId';
+                                    final kategoriLabel =
+                                        p.kategoriByJenisId(jenisId) ??
+                                            firstItem.invKategori;
+                                    final expanded =
+                                        _expandedJenisIds.contains(jenisId);
+
+                                    return SizedBox(
+                                      width: cardWidth,
+                                      child: _InventarisGroupCard(
+                                        jenisId: jenisId,
+                                        jenisNama: jenisNama,
+                                        kategoriLabel: kategoriLabel,
+                                        items: items,
+                                        expanded: expanded,
+                                        onToggle: () {
+                                          setState(() {
+                                            if (expanded) {
+                                              _expandedJenisIds.remove(jenisId);
+                                            } else {
+                                              _expandedJenisIds.add(jenisId);
+                                            }
+                                          });
+                                        },
+                                        pabrikLabelBuilder: p.displayPabrik,
+                                        onEditItem: _openForm,
+                                        onAddItem: (jId) => _openForm(null, jId),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
                               );
                             }(),
                           ),

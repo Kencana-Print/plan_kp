@@ -857,10 +857,38 @@ class _ChecklistTab extends StatelessWidget {
               ),
             if (filtered.isNotEmpty)
               Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
-                  children: _buildGroupedCards(filtered, jenisNameById),
-                ),
+                child: () {
+                  final isMobile = AppBreakpoints.isMobile(context);
+                  final cards = _buildGroupedCards(filtered, jenisNameById);
+                  if (isMobile) {
+                    return ListView(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
+                      children: cards,
+                    );
+                  }
+                  final cols = AppBreakpoints.gridColumns(context, mobile: 1, tablet: 2, desktop: 2);
+                  final maxWidth = AppBreakpoints.responsiveValue(
+                    context,
+                    mobile: MediaQuery.of(context).size.width,
+                    tablet: 860.0,
+                    desktop: 1180.0,
+                  );
+                  final cardWidth = (maxWidth - (12 * (cols - 1))) / cols;
+                  return SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(0, 12, 0, 120),
+                    child: Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: cards.map((card) {
+                        return SizedBox(
+                          width: cardWidth,
+                          child: card,
+                        );
+                      }).toList(),
+                    ),
+                  );
+                }(),
               ),
           ]
         ]);

@@ -155,20 +155,44 @@ class _JenisScreenState extends State<JenisScreen> {
                       Expanded(
                         child: () {
                           if (p.loading) {
-                            return const AppShimmer(
-                              child: SingleChildScrollView(
-                                physics: NeverScrollableScrollPhysics(),
-                                padding: EdgeInsets.symmetric(horizontal: 16),
-                                child: Column(
-                                  children: [
-                                    AppSkeletonListCard(),
-                                    AppSkeletonListCard(),
-                                    AppSkeletonListCard(),
-                                    AppSkeletonListCard(),
-                                  ],
+                            final isMobile = AppBreakpoints.isMobile(context);
+                            if (isMobile) {
+                              return const AppShimmer(
+                                child: SingleChildScrollView(
+                                  physics: NeverScrollableScrollPhysics(),
+                                  padding: EdgeInsets.symmetric(horizontal: 16),
+                                  child: Column(
+                                    children: [
+                                      AppSkeletonListCard(),
+                                      AppSkeletonListCard(),
+                                      AppSkeletonListCard(),
+                                      AppSkeletonListCard(),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            );
+                              );
+                            } else {
+                              final columns = AppBreakpoints.gridColumns(
+                                context,
+                                mobile: 1,
+                                tablet: 2,
+                                desktop: 3,
+                              );
+                              return AppShimmer(
+                                child: GridView.builder(
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  padding: const EdgeInsets.fromLTRB(0, 12, 0, 80),
+                                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: columns,
+                                    mainAxisSpacing: 12,
+                                    crossAxisSpacing: 12,
+                                    mainAxisExtent: 115,
+                                  ),
+                                  itemCount: 6,
+                                  itemBuilder: (_, __) => const AppSkeletonListCard(),
+                                ),
+                              );
+                            }
                           }
                           if (p.jenisMaster.isEmpty) {
                             return EmptyState(
@@ -182,17 +206,41 @@ class _JenisScreenState extends State<JenisScreen> {
                               message: 'Data jenis tidak ditemukan',
                             );
                           }
-                          return ListView.separated(
+
+                          final isMobile = AppBreakpoints.isMobile(context);
+                          if (isMobile) {
+                            return ListView.separated(
+                              physics: const BouncingScrollPhysics(),
+                              padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
+                              itemCount: filtered.length,
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(height: 12),
+                              itemBuilder: (_, i) {
+                                final jenis = filtered[i];
+                                return _JenisCard(
+                                  jenis: jenis,
+                                  onEdit: () => _openForm(jenis),
+                                );
+                              },
+                            );
+                          }
+
+                          final columns = AppBreakpoints.gridColumns(
+                            context,
+                            mobile: 1,
+                            tablet: 2,
+                            desktop: 3,
+                          );
+                          return GridView.builder(
                             physics: const BouncingScrollPhysics(),
-                            padding: EdgeInsets.fromLTRB(
-                              AppBreakpoints.isDesktop(context) ? 0 : 16,
-                              12,
-                              AppBreakpoints.isDesktop(context) ? 0 : 16,
-                              80,
+                            padding: const EdgeInsets.fromLTRB(0, 12, 0, 80),
+                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: columns,
+                              mainAxisSpacing: 12,
+                              crossAxisSpacing: 12,
+                              mainAxisExtent: 115,
                             ),
                             itemCount: filtered.length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(height: 12),
                             itemBuilder: (_, i) {
                               final jenis = filtered[i];
                               return _JenisCard(
@@ -224,110 +272,167 @@ class _JenisCard extends StatelessWidget {
     required this.onEdit,
   });
 
+  Widget _buildDivisiBadge(String kategori) {
+    final divisiColor = AppDivisiColors.getColor(kategori);
+    final divisiIcon = AppDivisiColors.getIcon(kategori);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: divisiColor.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(divisiIcon, size: 11, color: divisiColor),
+          const SizedBox(width: 4),
+          Text(
+            kategori.toUpperCase(),
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: divisiColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGapBadge(int gapHari) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.textSecondary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        'Gap ${gapHari}h',
+        style: const TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: AppColors.textSecondary,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge(bool isActive, Color activeColor) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: activeColor.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        isActive ? 'Aktif' : 'Nonaktif',
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: activeColor,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isInactive = !jenis.jenisIsActive;
     final activeColor =
         jenis.jenisIsActive ? AppColors.success : AppColors.danger;
+    final isMobile = AppBreakpoints.isMobile(context);
 
-    Widget cardContent = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      child: Row(
-        children: [
-          // Nama jenis & Kategori
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  jenis.jenisNama,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 15,
-                    color: isInactive ? AppColors.textSecondary : AppColors.textPrimary,
+    Widget cardContent;
+
+    if (isMobile) {
+      cardContent = Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    jenis.jenisNama,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 15,
+                      color: isInactive ? AppColors.textSecondary : AppColors.textPrimary,
+                    ),
                   ),
+                  const SizedBox(height: 4),
+                  _buildDivisiBadge(jenis.jenisKategori),
+                ],
+              ),
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (jenis.jenisGapHari > 0) ...[
+                  _buildGapBadge(jenis.jenisGapHari),
+                  const SizedBox(width: 6),
+                ],
+                _buildStatusBadge(jenis.jenisIsActive, activeColor),
+                const SizedBox(width: 8),
+                IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  icon: const Icon(Icons.edit_outlined, size: 18, color: AppColors.textSecondary),
+                  onPressed: onEdit,
                 ),
-                const SizedBox(height: 4),
-                Builder(builder: (context) {
-                  final divisiColor = AppDivisiColors.getColor(jenis.jenisKategori);
-                  final divisiIcon = AppDivisiColors.getIcon(jenis.jenisKategori);
-                  return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: divisiColor.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(divisiIcon, size: 11, color: divisiColor),
-                        const SizedBox(width: 4),
-                        Text(
-                          jenis.jenisKategori.toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: divisiColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }),
               ],
             ),
-          ),
-          // Gap hari & Status & Edit button
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (jenis.jenisGapHari > 0) ...[
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: AppColors.textSecondary.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    'Gap ${jenis.jenisGapHari}h',
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textSecondary,
+          ],
+        ),
+      );
+    } else {
+      cardContent = Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildDivisiBadge(jenis.jenisKategori),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (jenis.jenisGapHari > 0) ...[
+                      _buildGapBadge(jenis.jenisGapHari),
+                      const SizedBox(width: 6),
+                    ],
+                    _buildStatusBadge(jenis.jenisIsActive, activeColor),
+                    const SizedBox(width: 6),
+                    IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      icon: const Icon(Icons.edit_outlined, size: 18, color: AppColors.textSecondary),
+                      onPressed: onEdit,
                     ),
-                  ),
+                  ],
                 ),
-                const SizedBox(width: 6),
               ],
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: activeColor.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  jenis.jenisIsActive ? 'Aktif' : 'Nonaktif',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: activeColor,
-                  ),
-                ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              jenis.jenisNama,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 15,
+                color: isInactive ? AppColors.textSecondary : AppColors.textPrimary,
               ),
-              const SizedBox(width: 8),
-              IconButton(
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                icon: const Icon(Icons.edit_outlined, size: 18, color: AppColors.textSecondary),
-                onPressed: onEdit,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
+            ),
+          ],
+        ),
+      );
+    }
 
     if (isInactive) {
       cardContent = Opacity(opacity: 0.6, child: cardContent);
@@ -336,7 +441,7 @@ class _JenisCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
         boxShadow: [
           BoxShadow(
@@ -349,7 +454,7 @@ class _JenisCard extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
           onTap: onEdit,
           child: cardContent,
         ),
