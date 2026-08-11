@@ -2051,23 +2051,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final div = (item['divisi'] ?? '').toString().trim().toUpperCase();
       if (div.isEmpty) continue;
 
-      final totalJenis = _toInt(item['total_jenis']);
-      final schedJenis = _toInt(item['jenis_dijadwalkan']);
-      final pctApi = _toInt(item['progress_percent'] ?? item['progress_persen']);
+      int divTarget = 0;
+      int divRealisasi = 0;
 
-      if (!divisiMap.containsKey(div)) {
-        divisiMap[div] = {
-          'divisi': div,
-          'target_unit': totalJenis,
-          'realisasi_unit': schedJenis,
-          'progress_percent': pctApi,
-        };
-      } else {
-        if ((divisiMap[div]!['target_unit'] as int) == 0) {
-          divisiMap[div]!['target_unit'] = totalJenis;
-          divisiMap[div]!['realisasi_unit'] = schedJenis;
-          divisiMap[div]!['progress_percent'] = pctApi;
+      if (item['detail_jenis'] != null && item['detail_jenis'] is List) {
+        for (final jen in (item['detail_jenis'] as List)) {
+          if (jen['jadwal'] != null && jen['jadwal'] is List) {
+            for (final jdw in (jen['jadwal'] as List)) {
+              divTarget += _toInt(jdw['jdw_target']);
+              divRealisasi += _toInt(jdw['jdw_realisasi']);
+            }
+          }
         }
+      }
+
+      divisiMap.putIfAbsent(div, () => {
+        'divisi': div,
+        'target_unit': 0,
+        'realisasi_unit': 0,
+        'progress_percent': 0,
+      });
+
+      if ((divisiMap[div]!['target_unit'] as int) == 0 && divTarget > 0) {
+        divisiMap[div]!['target_unit'] = divTarget;
+        divisiMap[div]!['realisasi_unit'] = divRealisasi;
       }
     }
 
@@ -2289,7 +2296,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     ),
                     Text(
-                      'Jenis Dijadwalkan vs Total Jenis',
+                      'Presentase Penjadwalan per Divisi',
                       style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary),
                     ),
                   ],
@@ -2531,7 +2538,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     ),
                     Text(
-                      'Perbandingan Tren Realisasi % 6 Bulan',
+                      'Presentase Realisasi per Divisi',
                       style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary),
                     ),
                   ],
@@ -2801,20 +2808,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Grafik Perbandingan Per Divisi',
+                      'Grafik Monitoring Divisi',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
                         color: AppColors.textPrimary,
                         letterSpacing: -0.2,
-                      ),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      'Progres Penjadwalan Divisi & Realisasi per divisi',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
                       ),
                     ),
                   ],
@@ -2829,7 +2828,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 onPressed: () => Navigator.pushNamed(context, AppRoutes.monitoringDivisi),
                 icon: const Icon(Icons.arrow_forward_rounded, size: 14, color: AppColors.primary),
                 label: const Text(
-                  'Detail Divisi',
+                  'Monitoring Divisi',
                   style: TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w700,
@@ -2910,7 +2909,66 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
+
+          // Sub-Header untuk Kartu Divisi + Filter Bulan
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Target/Realisasi per Divisi',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary,
+                      letterSpacing: -0.2,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => _showMonthYearPicker(context),
+                    borderRadius: BorderRadius.circular(99),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0F5FF),
+                        borderRadius: BorderRadius.circular(99),
+                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.15)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '${_monthNames[_selectedTargetMonth.month - 1]} ${_selectedTargetMonth.year}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                          const SizedBox(width: 3),
+                          const Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            size: 14,
+                            color: AppColors.primary,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
 
           // 2. Division Cards Grid
           Padding(
@@ -2967,12 +3025,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          'Divisi $divisi',
+                                          'DIVISI $divisi',
                                           style: const TextStyle(
                                             fontWeight: FontWeight.w800,
-                                            fontSize: 14,
+                                            fontSize: 12,
                                             color: AppColors.textPrimary,
                                           ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
                                         const SizedBox(height: 2),
                                         Text(

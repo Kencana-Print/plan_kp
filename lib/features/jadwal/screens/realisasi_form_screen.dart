@@ -365,9 +365,9 @@ class _RealisasiFormScreenState extends State<RealisasiFormScreen> {
       final picker = ImagePicker();
       final picked = await picker.pickImage(
         source: source,
-        maxWidth: 1280,
-        maxHeight: 1280,
-        imageQuality: 80,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 70,
       );
       if (picked != null) {
         final ext = picked.name.split('.').last.toLowerCase();
@@ -378,6 +378,13 @@ class _RealisasiFormScreenState extends State<RealisasiFormScreen> {
           return;
         }
         final bytes = await picked.readAsBytes();
+        // Pengaman FE: Jika gambar di atas 10 MB (kemungkinan file rusak/non-gambar), berikan peringatan
+        if (bytes.length > 10 * 1024 * 1024) {
+          if (mounted) {
+            AppNotifier.showWarning(context, 'Ukuran foto terlalu besar (maksimal 10 MB)');
+          }
+          return;
+        }
         final safeName = picked.name.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
         setState(() {
           _imageBytes = bytes.toList();
