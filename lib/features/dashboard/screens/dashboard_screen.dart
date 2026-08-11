@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:awesome_dialog/awesome_dialog.dart';
@@ -48,12 +49,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<RealisasiModel> _pendingDrafts = [];
   int _heroCardPageIndex = 0;
   final PageController _heroCardPageController = PageController();
+  int _managerChartPageIndex = 0;
+  final PageController _managerChartPageController = PageController();
   DateTime _selectedTargetMonth = DateTime(DateTime.now().year, DateTime.now().month);
+  String? _selectedDivisiHighlight;
+  int? _activeMonthPopupIndex;
+  Timer? _popoverDismissTimer;
+  int? _activeSchedulingPopupIndex;
+  Timer? _schedulingDismissTimer;
+  bool _isManagerJadwalExpanded = false;
 
   @override
   void dispose() {
     _heroCardPageController.dispose();
+    _managerChartPageController.dispose();
+    _popoverDismissTimer?.cancel();
+    _schedulingDismissTimer?.cancel();
     super.dispose();
+  }
+
+  void _startPopoverDismissTimer() {
+    _popoverDismissTimer?.cancel();
+    _popoverDismissTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted && _activeMonthPopupIndex != null) {
+        setState(() {
+          _activeMonthPopupIndex = null;
+        });
+      }
+    });
+  }
+
+  void _startSchedulingDismissTimer() {
+    _schedulingDismissTimer?.cancel();
+    _schedulingDismissTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted && _activeSchedulingPopupIndex != null) {
+        setState(() {
+          _activeSchedulingPopupIndex = null;
+        });
+      }
+    });
   }
 
   void _showPendingTtdDialog(List<RealisasiModel> drafts) {
@@ -391,6 +425,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           p.fetchJadwal(),
           p.fetchRealisasi(status: 'Selesai'),
           p.fetchDashboardSummary(),
+          p.fetchMonitoringDivisi(),
         ]);
       } else if (role == 'admin') {
         await Future.wait([
@@ -1756,6 +1791,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     ),
 
+                    if (role == 'manager')
+                      SliverToBoxAdapter(
+                        child: _buildManagerDivisiOverview(context, p),
+                      ),
+
                     // 3. System Flow Section (Alur Persiapan & Data Master)
                     SliverToBoxAdapter(
                       child: _buildAdaptiveSystemFlow(isDesktop, role),
@@ -1764,41 +1804,101 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     // 4. Tasks Header Section
                     SliverToBoxAdapter(
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 2),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              "Daftar Jadwal",
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.textPrimary,
-                                letterSpacing: -0.2,
-                              ),
-                            ),
-                            TextButton(
-                              style: TextButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                minimumSize: Size.zero,
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              ),
-                              onPressed: () {
-                                final sorted = [...p.jadwalList]..sort((a, b) =>
-                                    _getRemainingDaysDiff(a)
-                                        .compareTo(_getRemainingDaysDiff(b)));
-                                _showAllPlansBottomSheet(context, sorted, p);
-                              },
-                              child: const Text(
-                                'Lihat Semua',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF154BB8),
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                        child: InkWell(
+                          onTap: role == 'manager'
+                              ? () {
+                                  setState(() {
+                                    _isManagerJadwalExpanded = !_isManagerJadwalExpanded;
+                                  });
+                                }
+                              : null,
+                          borderRadius: BorderRadius.circular(10),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Text(
+                                      "Daftar Jadwal",
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppColors.textPrimary,
+                                        letterSpacing: -0.2,
+                                      ),
+                                    ),
+                                    if (role == 'manager') ...[
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                                        decoration: BoxDecoration(
+                                          color: _isManagerJadwalExpanded
+                                              ? AppColors.textPrimary.withValues(alpha: 0.08)
+                                              : AppColors.textSecondary.withValues(alpha: 0.08),
+                                          borderRadius: BorderRadius.circular(20),
+                                          border: Border.all(
+                                            color: _isManagerJadwalExpanded
+                                                ? AppColors.textPrimary.withValues(alpha: 0.25)
+                                                : AppColors.border,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              _isManagerJadwalExpanded ? 'Tutup' : 'Buka',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w700,
+                                                color: _isManagerJadwalExpanded
+                                                    ? AppColors.textPrimary
+                                                    : AppColors.textSecondary,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 3),
+                                            Icon(
+                                              _isManagerJadwalExpanded
+                                                  ? Icons.keyboard_arrow_up_rounded
+                                                  : Icons.keyboard_arrow_down_rounded,
+                                              size: 16,
+                                              color: _isManagerJadwalExpanded
+                                                  ? AppColors.textPrimary
+                                                  : AppColors.textSecondary,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ],
                                 ),
-                              ),
+                                if (role != 'manager' || _isManagerJadwalExpanded)
+                                  TextButton(
+                                    style: TextButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      minimumSize: Size.zero,
+                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                    onPressed: () {
+                                      final sorted = [...p.jadwalList]..sort((a, b) =>
+                                          _getRemainingDaysDiff(a)
+                                              .compareTo(_getRemainingDaysDiff(b)));
+                                      _showAllPlansBottomSheet(context, sorted, p);
+                                    },
+                                    child: const Text(
+                                      'Lihat Semua',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF154BB8),
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
                       ),
                     ),
@@ -1806,6 +1906,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     // 5. Plan Cards Section
                     Consumer<JadwalProvider>(
                       builder: (_, pProvider, __) {
+                        // Khusus Manager: Sembunyikan list jika tertutup/collapsed!
+                        if (role == 'manager' && !_isManagerJadwalExpanded) {
+                          return const SliverToBoxAdapter(child: SizedBox.shrink());
+                        }
+
                         final sorted = [...pProvider.jadwalList]..sort((a, b) =>
                             _getRemainingDaysDiff(a)
                                 .compareTo(_getRemainingDaysDiff(b)));
@@ -1890,6 +1995,1037 @@ class _DashboardScreenState extends State<DashboardScreen> {
         if (!mounted) return;
         Navigator.pushReplacementNamed(context, AppRoutes.login);
       },
+    );
+  }
+
+  int _toInt(dynamic v) => (v is num) ? v.toInt() : (int.tryParse(v?.toString() ?? '') ?? 0);
+
+  List<Map<String, dynamic>> _getDivisiTargetRealisasiData(JadwalProvider p) {
+    final Map<String, Map<String, dynamic>> divisiMap = {};
+
+    final startOfMonth = DateTime(_selectedTargetMonth.year, _selectedTargetMonth.month, 1);
+    final endOfMonth = DateTime(_selectedTargetMonth.year, _selectedTargetMonth.month + 1, 0);
+
+    // 1. Calculate Target per Divisi from Jadwal
+    for (final j in p.jadwalList) {
+      final String div = j.jdwDivisi.trim().toUpperCase();
+      if (div.isEmpty) continue;
+
+      divisiMap.putIfAbsent(div, () => {
+        'divisi': div,
+        'target_unit': 0,
+        'realisasi_unit': 0,
+        'progress_percent': 0,
+      });
+
+      final holidayDays = p.getHolidayDaysForMonth(_selectedTargetMonth, divisi: div);
+      final lastRealDate = _getLastRealisasiDateForJadwal(j.jdwId, p.realisasiList);
+      final count = _effectiveScheduleDatesInMonth(
+        j, startOfMonth, endOfMonth, holidayDays, lastRealisasiDate: lastRealDate
+      ).length;
+      final perTarget = (j.jdwTarget ?? 0) > 0 ? j.jdwTarget! : (j.jdwTotalUnit ?? 0);
+
+      divisiMap[div]!['target_unit'] = (divisiMap[div]!['target_unit'] as int) + (count * perTarget);
+    }
+
+    // 2. Calculate Realisasi Selesai per Divisi
+    for (final r in p.realisasiList) {
+      if (r.realStatus != 'Selesai') continue;
+      if (r.realBulan != _selectedTargetMonth.month || r.realTahun != _selectedTargetMonth.year) continue;
+
+      final match = p.jadwalList.where((item) => item.jdwId == r.realJadwalId);
+      final String div = (match.isNotEmpty ? match.first.jdwDivisi : '').trim().toUpperCase();
+      if (div.isNotEmpty) {
+        divisiMap.putIfAbsent(div, () => {
+          'divisi': div,
+          'target_unit': 0,
+          'realisasi_unit': 0,
+          'progress_percent': 0,
+        });
+        divisiMap[div]!['realisasi_unit'] = (divisiMap[div]!['realisasi_unit'] as int) + 1;
+      }
+    }
+
+    // Fallback / merge with API monitoringDivisiList
+    for (final item in p.monitoringDivisiList) {
+      final div = (item['divisi'] ?? '').toString().trim().toUpperCase();
+      if (div.isEmpty) continue;
+
+      final totalJenis = _toInt(item['total_jenis']);
+      final schedJenis = _toInt(item['jenis_dijadwalkan']);
+      final pctApi = _toInt(item['progress_percent'] ?? item['progress_persen']);
+
+      if (!divisiMap.containsKey(div)) {
+        divisiMap[div] = {
+          'divisi': div,
+          'target_unit': totalJenis,
+          'realisasi_unit': schedJenis,
+          'progress_percent': pctApi,
+        };
+      } else {
+        if ((divisiMap[div]!['target_unit'] as int) == 0) {
+          divisiMap[div]!['target_unit'] = totalJenis;
+          divisiMap[div]!['realisasi_unit'] = schedJenis;
+          divisiMap[div]!['progress_percent'] = pctApi;
+        }
+      }
+    }
+
+    // 3. Compute Final Progress Percent per Divisi
+    final List<Map<String, dynamic>> result = [];
+    divisiMap.forEach((div, dataMap) {
+      final target = dataMap['target_unit'] as int;
+      final realisasi = dataMap['realisasi_unit'] as int;
+      final pct = target > 0 ? ((realisasi / target) * 100).clamp(0, 100).round() : 0;
+      dataMap['progress_percent'] = pct;
+      result.add(dataMap);
+    });
+
+    return result;
+  }
+
+  Map<String, dynamic> _getDivisiMonthlyData(JadwalProvider p) {
+    final now = _selectedTargetMonth;
+    final int currentYear = now.year;
+
+    final List<int> monthList = [];
+    final List<String> monthLabels = [];
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'];
+
+    for (int i = 5; i >= 0; i--) {
+      final m = DateTime(currentYear, now.month - i, 1);
+      monthList.add(m.month);
+      monthLabels.add(monthNames[m.month - 1]);
+    }
+
+    final Set<String> divisions = {};
+    for (final j in p.jadwalList) {
+      final div = j.jdwDivisi.trim().toUpperCase();
+      if (div.isNotEmpty) divisions.add(div);
+    }
+    for (final item in p.monitoringDivisiList) {
+      final div = (item['divisi'] ?? '').toString().trim().toUpperCase();
+      if (div.isNotEmpty) divisions.add(div);
+    }
+
+    if (divisions.isEmpty) {
+      divisions.addAll(['UTILITY', 'BOILER', 'ELECTRICAL', 'MAINTENANCE', 'PRODUKSI']);
+    }
+
+    final Map<String, List<double>> seriesMap = {};
+
+    for (final div in divisions) {
+      final List<double> monthlyPctList = [];
+
+      for (final monthNum in monthList) {
+        final targetMonth = DateTime(currentYear, monthNum, 1);
+        final startOfMonth = DateTime(currentYear, monthNum, 1);
+        final endOfMonth = DateTime(currentYear, monthNum + 1, 0);
+
+        int targetCount = 0;
+        for (final j in p.jadwalList) {
+          if (j.jdwDivisi.trim().toUpperCase() != div) continue;
+          final holidayDays = p.getHolidayDaysForMonth(targetMonth, divisi: div);
+          final count = _effectiveScheduleDatesInMonth(j, startOfMonth, endOfMonth, holidayDays).length;
+          final perTarget = (j.jdwTarget ?? 0) > 0 ? j.jdwTarget! : (j.jdwTotalUnit ?? 0);
+          targetCount += count * perTarget;
+        }
+
+        int realCount = 0;
+        for (final r in p.realisasiList) {
+          if (r.realStatus != 'Selesai') continue;
+          if (r.realBulan == monthNum && r.realTahun == currentYear) {
+            final match = p.jadwalList.where((item) => item.jdwId == r.realJadwalId);
+            final String rDiv = (match.isNotEmpty ? match.first.jdwDivisi : '').trim().toUpperCase();
+            if (rDiv == div) {
+              realCount++;
+            }
+          }
+        }
+
+        final double pct = targetCount > 0
+            ? ((realCount / targetCount) * 100).clamp(0.0, 100.0)
+            : (realCount > 0 ? 100.0 : 0.0);
+
+        monthlyPctList.add(pct);
+      }
+
+      seriesMap[div] = monthlyPctList;
+    }
+
+    return {
+      'months': monthLabels,
+      'series': seriesMap,
+    };
+  }
+
+  Widget _buildChartDotIndicator(int index, String label) {
+    final bool isSelected = _managerChartPageIndex == index;
+    return InkWell(
+      onTap: () {
+        _managerChartPageController.animateToPage(
+          index,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF2563EB).withValues(alpha: 0.1) : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              width: isSelected ? 14 : 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: isSelected ? const Color(0xFF2563EB) : const Color(0xFFCBD5E1),
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                color: isSelected ? const Color(0xFF2563EB) : AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Map<String, dynamic>> _getDivisiPenjadwalanData(JadwalProvider p) {
+    final Map<String, Map<String, dynamic>> divisiMap = {};
+
+    for (final item in p.monitoringDivisiList) {
+      final div = (item['divisi'] ?? '').toString().trim().toUpperCase();
+      if (div.isEmpty) continue;
+
+      divisiMap[div] = {
+        'divisi': div,
+        'total_jenis': _toInt(item['total_jenis']),
+        'jenis_dijadwalkan': _toInt(item['jenis_dijadwalkan']),
+      };
+    }
+
+    if (p.jadwalList.isNotEmpty) {
+      final Map<String, Set<int>> schedJenisMap = {};
+      for (final j in p.jadwalList) {
+        final div = j.jdwDivisi.trim().toUpperCase();
+        if (div.isEmpty) continue;
+
+        schedJenisMap.putIfAbsent(div, () => {});
+        schedJenisMap[div]!.add(j.jdwJenisId);
+
+        divisiMap.putIfAbsent(div, () => {
+          'divisi': div,
+          'total_jenis': 0,
+          'jenis_dijadwalkan': 0,
+        });
+      }
+
+      schedJenisMap.forEach((div, jenisSet) {
+        if ((divisiMap[div]!['jenis_dijadwalkan'] as int) == 0) {
+          divisiMap[div]!['jenis_dijadwalkan'] = jenisSet.length;
+        }
+        if ((divisiMap[div]!['total_jenis'] as int) == 0) {
+          divisiMap[div]!['total_jenis'] = jenisSet.length;
+        }
+      });
+    }
+
+    return divisiMap.values.toList();
+  }
+
+  Widget _buildPenjadwalanChartCard(JadwalProvider p) {
+    final data = _getDivisiPenjadwalanData(p);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.8)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.event_note_rounded, size: 16, color: AppColors.primary),
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '1. Progres Penjadwalan Divisi',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      'Jenis Dijadwalkan vs Total Jenis',
+                      style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text(
+                  'Penjadwalan',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.primary),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final double totalW = constraints.maxWidth;
+              const double leftPadding = 32.0;
+              const double rightPadding = 20.0;
+              final double chartWidth = totalW - leftPadding - rightPadding;
+              final double groupWidth = data.isNotEmpty ? chartWidth / data.length : chartWidth;
+
+              void handlePosition(Offset localPosition, {required bool isTap}) {
+                final dx = localPosition.dx;
+                int closestDivIdx = 0;
+                double minDistance = double.infinity;
+
+                for (int i = 0; i < data.length; i++) {
+                  final centerX = leftPadding + (i + 0.5) * groupWidth;
+                  final dist = (dx - centerX).abs();
+                  if (dist < minDistance) {
+                    minDistance = dist;
+                    closestDivIdx = i;
+                  }
+                }
+
+                setState(() {
+                  if (isTap && _activeSchedulingPopupIndex == closestDivIdx) {
+                    _activeSchedulingPopupIndex = null;
+                  } else {
+                    _activeSchedulingPopupIndex = closestDivIdx;
+                  }
+                });
+
+                if (isTap && _activeSchedulingPopupIndex != null) {
+                  _startSchedulingDismissTimer();
+                }
+              }
+
+              final bool hasActiveDiv = _activeSchedulingPopupIndex != null && _activeSchedulingPopupIndex! < data.length;
+              final Map<String, dynamic>? activeItem = hasActiveDiv ? data[_activeSchedulingPopupIndex!] : null;
+              final double popoverLeft = hasActiveDiv
+                  ? (leftPadding + (_activeSchedulingPopupIndex! + 0.5) * groupWidth - 62)
+                      .clamp(4.0, totalW - 128.0)
+                  : 0.0;
+
+              return GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTapDown: (details) => handlePosition(details.localPosition, isTap: true),
+                child: MouseRegion(
+                  onHover: (event) => handlePosition(event.localPosition, isTap: false),
+                  onExit: (_) => setState(() => _activeSchedulingPopupIndex = null),
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      SizedBox(
+                        height: 145,
+                        width: double.infinity,
+                        child: CustomPaint(
+                          painter: _DivisiBarChartPainter(
+                            data: data,
+                            toInt: _toInt,
+                            keyTotal: 'total_jenis',
+                            keyCurrent: 'jenis_dijadwalkan',
+                            activeDivIndex: _activeSchedulingPopupIndex,
+                          ),
+                        ),
+                      ),
+                      if (hasActiveDiv && activeItem != null) ...[
+                        Positioned(
+                          left: popoverLeft,
+                          top: 0,
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _activeSchedulingPopupIndex = null;
+                              });
+                            },
+                            child: Container(
+                              width: 125,
+                              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: AppColors.white,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: AppColors.border.withValues(alpha: 0.9)),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.08),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Builder(builder: (context) {
+                                final String div = (activeItem['divisi'] ?? '-').toString();
+                                final int totalVal = _toInt(activeItem['total_jenis']);
+                                final int currentVal = _toInt(activeItem['jenis_dijadwalkan']);
+                                final double pct = totalVal > 0 ? (currentVal / totalVal * 100) : 0.0;
+                                final Color divColor = AppDivisiColors.getColor(div);
+
+                                return Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Container(
+                                              width: 6,
+                                              height: 6,
+                                              decoration: BoxDecoration(color: divColor, shape: BoxShape.circle),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              div,
+                                              style: TextStyle(
+                                                fontSize: 10.5,
+                                                fontWeight: FontWeight.w900,
+                                                color: divColor,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        GestureDetector(
+                                          onTap: () {
+                                            setState(() {
+                                              _activeSchedulingPopupIndex = null;
+                                            });
+                                          },
+                                          child: const Padding(
+                                            padding: EdgeInsets.all(2.0),
+                                            child: Icon(Icons.close_rounded, size: 12, color: AppColors.textSecondary),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const Divider(color: AppColors.border, height: 6, thickness: 0.8),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        const Text('Total Jenis:', style: TextStyle(fontSize: 9, color: AppColors.textSecondary)),
+                                        Text('$totalVal', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 1.5),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        const Text('Dijadwalkan:', style: TextStyle(fontSize: 9, color: AppColors.textSecondary)),
+                                        Text('$currentVal', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: divColor)),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 1.5),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        const Text('Progres:', style: TextStyle(fontSize: 9, color: AppColors.textSecondary)),
+                                        Text('${pct.round()}%', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: divColor)),
+                                      ],
+                                    ),
+                                  ],
+                                );
+                              }),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRealisasiChartCard(JadwalProvider p) {
+    final monthlyData = _getDivisiMonthlyData(p);
+    final List<String> months = (monthlyData['months'] as List).cast<String>();
+    final Map<String, List<double>> series = (monthlyData['series'] as Map).cast<String, List<double>>();
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.8)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.show_chart_rounded, size: 16, color: AppColors.success),
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '2. Progres Realisasi per Divisi',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      'Perbandingan Tren Realisasi % 6 Bulan',
+                      style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text(
+                  'Bulanan',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF059669)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final double totalW = constraints.maxWidth;
+              const double leftPadding = 32.0;
+              const double rightPadding = 20.0;
+              final double chartWidth = totalW - leftPadding - rightPadding;
+              final double stepX = months.length > 1 ? chartWidth / (months.length - 1) : chartWidth / 2;
+
+              void handlePosition(Offset localPosition, {required bool isTap}) {
+                final dx = localPosition.dx;
+                int closestMonthIdx = 0;
+                double minDistance = double.infinity;
+
+                for (int i = 0; i < months.length; i++) {
+                  final monthX = leftPadding + (months.length == 1 ? chartWidth / 2 : i * stepX);
+                  final dist = (dx - monthX).abs();
+                  if (dist < minDistance) {
+                    minDistance = dist;
+                    closestMonthIdx = i;
+                  }
+                }
+
+                setState(() {
+                  if (isTap && _activeMonthPopupIndex == closestMonthIdx) {
+                    _activeMonthPopupIndex = null;
+                  } else {
+                    _activeMonthPopupIndex = closestMonthIdx;
+                  }
+                });
+
+                if (isTap && _activeMonthPopupIndex != null) {
+                  _startPopoverDismissTimer();
+                }
+              }
+
+              final bool hasActiveMonth = _activeMonthPopupIndex != null && _activeMonthPopupIndex! < months.length;
+              final double popoverLeft = hasActiveMonth
+                  ? (leftPadding + (months.length == 1 ? chartWidth / 2 : _activeMonthPopupIndex! * stepX) - 60)
+                      .clamp(4.0, totalW - 124.0)
+                  : 0.0;
+
+              return GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTapDown: (details) => handlePosition(details.localPosition, isTap: true),
+                child: MouseRegion(
+                  onHover: (event) => handlePosition(event.localPosition, isTap: false),
+                  onExit: (_) => setState(() => _activeMonthPopupIndex = null),
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      SizedBox(
+                        height: 125,
+                        width: double.infinity,
+                        child: CustomPaint(
+                          painter: _MultiLineDivisiChartPainter(
+                            months: months,
+                            series: series,
+                            highlightedDivisi: _selectedDivisiHighlight,
+                            activeMonthIndex: _activeMonthPopupIndex,
+                          ),
+                        ),
+                      ),
+                      // Popover Minimal Melayang Tepat di Atas Kolom Bulan Aktif
+                      if (hasActiveMonth)
+                        Positioned(
+                          left: popoverLeft,
+                          top: 0,
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _activeMonthPopupIndex = null;
+                              });
+                            },
+                            child: Container(
+                              width: 120,
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: AppColors.border.withValues(alpha: 0.9)),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.08),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        months[_activeMonthPopupIndex!],
+                                        style: const TextStyle(
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.w900,
+                                          color: AppColors.primary,
+                                        ),
+                                      ),
+                                      GestureDetector(
+                                        onTap: () {
+                                          setState(() {
+                                            _activeMonthPopupIndex = null;
+                                          });
+                                        },
+                                        child: const Padding(
+                                          padding: EdgeInsets.all(2.0),
+                                          child: Icon(Icons.close_rounded, size: 12, color: AppColors.textSecondary),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const Divider(color: AppColors.border, height: 6, thickness: 0.8),
+                                  ...series.entries.map<Widget>((entry) {
+                                    final String div = entry.key;
+                                    final List<double> vals = entry.value;
+                                    final double pct =
+                                        (_activeMonthPopupIndex! < vals.length) ? vals[_activeMonthPopupIndex!] : 0.0;
+                                    final Color divColor = AppDivisiColors.getColor(div);
+
+                                    return Padding(
+                                      padding: const EdgeInsets.only(bottom: 1.5),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Container(
+                                                width: 5,
+                                                height: 5,
+                                                decoration: BoxDecoration(color: divColor, shape: BoxShape.circle),
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                div.length > 7 ? '${div.substring(0, 6)}.' : div,
+                                                style: const TextStyle(
+                                                  fontSize: 9.5,
+                                                  color: AppColors.textSecondary,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          Text(
+                                            '${pct.round()}%',
+                                            style: TextStyle(
+                                              fontSize: 9.5,
+                                              color: divColor,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 6),
+
+          // Interactive Color Legend per Division
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: series.keys.map<Widget>((divisi) {
+                final Color divColor = AppDivisiColors.getColor(divisi);
+                final bool isSelected = _selectedDivisiHighlight == divisi;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: InkWell(
+                    onTap: () {
+                      setState(() {
+                        if (_selectedDivisiHighlight == divisi) {
+                          _selectedDivisiHighlight = null;
+                        } else {
+                          _selectedDivisiHighlight = divisi;
+                        }
+                      });
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
+                      decoration: BoxDecoration(
+                        color: isSelected ? divColor.withValues(alpha: 0.15) : Colors.transparent,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected ? divColor : Colors.transparent,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 7,
+                            height: 7,
+                            decoration: BoxDecoration(color: divColor, shape: BoxShape.circle),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            divisi,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                              color: isSelected ? divColor : AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildManagerDivisiOverview(BuildContext context, JadwalProvider p) {
+    final data = _getDivisiTargetRealisasiData(p);
+    final isLoading = p.loading || _isLoadingData;
+    final isDesktop = MediaQuery.of(context).size.width > 900;
+    final cols = AppBreakpoints.gridColumns(context, mobile: 1, tablet: 2, desktop: 3);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Grafik Perbandingan Per Divisi',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Progres Penjadwalan Divisi & Realisasi per divisi',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              TextButton.icon(
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                onPressed: () => Navigator.pushNamed(context, AppRoutes.monitoringDivisi),
+                icon: const Icon(Icons.arrow_forward_rounded, size: 14, color: AppColors.primary),
+                label: const Text(
+                  'Detail Divisi',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (isLoading)
+          const AppShimmer(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: AppSkeletonSquircle(width: double.infinity, height: 215, borderRadius: 16),
+            ),
+          )
+        else if (data.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: _surfaceCard(),
+              child: const Row(
+                children: [
+                  Icon(Icons.info_outline_rounded, color: AppColors.textSecondary, size: 20),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Belum ada data monitoring divisi. Klik "Detail Divisi" untuk memuat ulang.',
+                      style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else ...[
+          // 1. Swipeable / Side-by-Side Chart Slider Area
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: isDesktop
+                ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: _buildPenjadwalanChartCard(p)),
+                      const SizedBox(width: 12),
+                      Expanded(child: _buildRealisasiChartCard(p)),
+                    ],
+                  )
+                : Column(
+                    children: [
+                      SizedBox(
+                        height: 215,
+                        child: PageView(
+                          controller: _managerChartPageController,
+                          onPageChanged: (idx) {
+                            setState(() {
+                              _managerChartPageIndex = idx;
+                            });
+                          },
+                          children: [
+                            _buildPenjadwalanChartCard(p),
+                            _buildRealisasiChartCard(p),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _buildChartDotIndicator(0, '1. Penjadwalan'),
+                          const SizedBox(width: 12),
+                          _buildChartDotIndicator(1, '2. Realisasi'),
+                        ],
+                      ),
+                    ],
+                  ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // 2. Division Cards Grid
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final double cardWidth = (constraints.maxWidth - (10 * (cols - 1))) / cols;
+                return Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: data.map((item) {
+                    final String divisi = item['divisi'] ?? '-';
+                    final int targetUnit = _toInt(item['target_unit']);
+                    final int realisasiUnit = _toInt(item['realisasi_unit']);
+                    final int progressPercent = _toInt(item['progress_percent']);
+                    final Color divColor = AppDivisiColors.getColor(divisi);
+                    final IconData divIcon = AppDivisiColors.getIcon(divisi);
+
+                    return SizedBox(
+                      width: cardWidth,
+                      child: InkWell(
+                        onTap: () => Navigator.pushNamed(context, AppRoutes.monitoringDivisi),
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: AppColors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppColors.border.withValues(alpha: 0.8)),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.02),
+                                blurRadius: 10,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: divColor.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Icon(divIcon, size: 18, color: divColor),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Divisi $divisi',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 14,
+                                            color: AppColors.textPrimary,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          '$realisasiUnit / $targetUnit Unit Selesai',
+                                          style: const TextStyle(
+                                            fontSize: 11.5,
+                                            color: AppColors.textSecondary,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: divColor.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      '$progressPercent%',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w800,
+                                        color: divColor,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: LinearProgressIndicator(
+                                  value: targetUnit > 0 ? (realisasiUnit / targetUnit).clamp(0.0, 1.0) : 0.0,
+                                  minHeight: 6,
+                                  backgroundColor: divColor.withValues(alpha: 0.15),
+                                  valueColor: AlwaysStoppedAnimation<Color>(divColor),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
+      ],
     );
   }
 
@@ -3232,18 +4368,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
       width: width,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.8)),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x060F172A),
-            blurRadius: 8,
+            color: Color(0x04000000),
+            blurRadius: 6,
             offset: Offset(0, 2),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         child: Material(
           color: Colors.transparent,
           child: InkWell(
@@ -3254,167 +4390,91 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // 1. Top Bar: Urgency Pill Badge (Left) + Circular Action Button (Right)
+                  // Header: Divisi Badge (Left) + Urgency Pill & Chevron (Right)
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: divisiColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(icon, size: 12, color: divisiColor),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Divisi ${item.jdwDivisi}',
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                color: divisiColor,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                         decoration: BoxDecoration(
                           color: badgeBg,
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
                           rem == 'Hari ini!' ? 'Hari Ini' : (rem.contains('Terlewat') ? 'Terlewat' : rem),
                           style: TextStyle(
                             color: badgeText,
                             fontWeight: FontWeight.w800,
-                            fontSize: 10.5,
+                            fontSize: 10,
                           ),
                         ),
                       ),
-                      Container(
-                        width: 28,
-                        height: 28,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFF1F5F9),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.chevron_right_rounded,
-                          size: 16,
-                          color: Color(0xFF334155),
-                        ),
-                      ),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.chevron_right_rounded, size: 16, color: AppColors.textSecondary),
                     ],
                   ),
                   const SizedBox(height: 8),
 
-                  // 2. Middle Row: Left Category Icon + Right Title & Subtags
+                  // Title
+                  Text(
+                    item.jdwJudul,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13.5,
+                      height: 1.25,
+                      color: AppColors.textPrimary,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Compact Progress Row
                   Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Category Icon Square Box
-                      Container(
-                        width: 42,
-                        height: 42,
-                        decoration: BoxDecoration(
-                          color: divisiColor.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          icon,
-                          size: 20,
-                          color: divisiColor,
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: progressPercent,
+                            minHeight: 5,
+                            backgroundColor: const Color(0xFFF1F5F9),
+                            valueColor: AlwaysStoppedAnimation<Color>(progressColor),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 10),
-
-                      // Title & Sub-info Column
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              item.jdwJudul,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 13.5,
-                                height: 1.2,
-                                color: Color(0xFF0F172A),
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 5),
-                            Wrap(
-                              spacing: 6,
-                              runSpacing: 4,
-                              crossAxisAlignment: WrapCrossAlignment.center,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
-                                  decoration: BoxDecoration(
-                                    color: divisiColor.withValues(alpha: 0.12),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    'Divisi ${item.jdwDivisi}',
-                                    style: TextStyle(
-                                      fontSize: 10.5,
-                                      color: divisiColor,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                                Text(
-                                  'Target: $totalTarget Unit',
-                                  style: const TextStyle(
-                                    fontSize: 11.5,
-                                    color: AppColors.textSecondary,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-
-                  // 3. Bottom Section: Divider + Progress Text + Progress Bar
-                  const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                  const SizedBox(height: 8),
-
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(2.5),
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFE6F4EA),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.bar_chart_rounded,
-                              size: 12,
-                              color: statusGreen,
-                            ),
-                          ),
-                          const SizedBox(width: 5),
-                          const Text(
-                            'Progres Realisasi',
-                            style: TextStyle(
-                              fontSize: 11.5,
-                              color: Color(0xFF334155),
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
                       Text(
-                        '$realisasiSelesai/$totalTarget Selesai ($percentInt%)',
+                        '$realisasiSelesai/$totalTarget Unit ($percentInt%)',
                         style: TextStyle(
-                          fontSize: 11.5,
+                          fontSize: 11,
                           fontWeight: FontWeight.w800,
                           color: progressColor,
                         ),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 5),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(99),
-                    child: LinearProgressIndicator(
-                      value: progressPercent,
-                      minHeight: 5,
-                      backgroundColor: const Color(0xFFE2E8F0),
-                      valueColor: AlwaysStoppedAnimation<Color>(progressColor),
-                    ),
                   ),
                   () {
                     final auth = context.read<AuthProvider>();
@@ -3423,7 +4483,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                     if (isUser) {
                       return Padding(
-                        padding: const EdgeInsets.only(top: 10),
+                        padding: const EdgeInsets.only(top: 8),
                         child: _actionBtn(
                           Icons.playlist_add_check_circle_outlined,
                           'Lakukan Realisasi',
@@ -4403,6 +5463,312 @@ class _AnimatedNotificationBellState extends State<_AnimatedNotificationBell>
       ),
     );
   }
+}
+
+class _MultiLineDivisiChartPainter extends CustomPainter {
+  final List<String> months;
+  final Map<String, List<double>> series;
+  final String? highlightedDivisi;
+  final int? activeMonthIndex;
+
+  _MultiLineDivisiChartPainter({
+    required this.months,
+    required this.series,
+    this.highlightedDivisi,
+    this.activeMonthIndex,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (months.isEmpty || series.isEmpty) return;
+
+    const double leftPadding = 32.0;
+    const double rightPadding = 20.0;
+    const double topPadding = 22.0;
+    const double bottomPadding = 26.0;
+
+    final double chartWidth = size.width - leftPadding - rightPadding;
+    final double chartHeight = size.height - topPadding - bottomPadding;
+
+    final Paint gridPaint = Paint()
+      ..color = AppColors.border
+      ..strokeWidth = 1.0;
+
+    final TextPainter textPainter = TextPainter(textDirection: TextDirection.ltr);
+
+    // 1. Draw horizontal grid lines (0%, 50%, 100%)
+    final gridSteps = [0, 50, 100];
+    for (final step in gridSteps) {
+      final double y = topPadding + chartHeight * (1.0 - step / 100.0);
+      canvas.drawLine(Offset(leftPadding, y), Offset(size.width - rightPadding, y), gridPaint);
+
+      textPainter.text = TextSpan(
+        text: '$step%',
+        style: const TextStyle(fontSize: 10, color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+      );
+      textPainter.layout();
+      textPainter.paint(canvas, Offset(2, y - textPainter.height / 2));
+    }
+
+    final double stepX = months.length > 1 ? chartWidth / (months.length - 1) : chartWidth / 2;
+
+    // 1.5 Draw vertical active month guide line
+    if (activeMonthIndex != null && activeMonthIndex! >= 0 && activeMonthIndex! < months.length) {
+      final double activeX = leftPadding + (months.length == 1 ? chartWidth / 2 : activeMonthIndex! * stepX);
+      final Paint activeLinePaint = Paint()
+        ..color = AppColors.primary.withValues(alpha: 0.4)
+        ..strokeWidth = 1.5;
+
+      canvas.drawLine(
+        Offset(activeX, topPadding - 4),
+        Offset(activeX, topPadding + chartHeight + 18),
+        activeLinePaint,
+      );
+    }
+
+    // 2. Draw lines for each division with distinct colors
+    series.forEach((divisi, values) {
+      if (values.isEmpty) return;
+
+      final Color divColor = AppDivisiColors.getColor(divisi);
+      final bool isHighlighted = highlightedDivisi == null || highlightedDivisi == divisi;
+      final double strokeWidth = isHighlighted ? 2.8 : 1.2;
+      final double opacity = isHighlighted ? 1.0 : 0.25;
+
+      final points = <Offset>[];
+      for (int i = 0; i < values.length; i++) {
+        final double pct = values[i].clamp(0.0, 100.0);
+        final double x = leftPadding + (months.length == 1 ? chartWidth / 2 : i * stepX);
+        final double y = topPadding + chartHeight * (1.0 - pct / 100.0);
+        points.add(Offset(x, y));
+      }
+
+      if (points.isEmpty) return;
+
+      // Cubic bezier path for each division line
+      final Path path = Path();
+      path.moveTo(points.first.dx, points.first.dy);
+
+      for (int i = 0; i < points.length - 1; i++) {
+        final p1 = points[i];
+        final p2 = points[i + 1];
+        final controlPoint1 = Offset(p1.dx + (p2.dx - p1.dx) / 2, p1.dy);
+        final controlPoint2 = Offset(p1.dx + (p2.dx - p1.dx) / 2, p2.dy);
+        path.cubicTo(controlPoint1.dx, controlPoint1.dy, controlPoint2.dx, controlPoint2.dy, p2.dx, p2.dy);
+      }
+
+      final Paint linePaint = Paint()
+        ..color = divColor.withValues(alpha: opacity)
+        ..strokeWidth = strokeWidth
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round;
+
+      canvas.drawPath(path, linePaint);
+
+      // Data dots on nodes with percentage labels
+      for (int i = 0; i < points.length; i++) {
+        final pt = points[i];
+        final int pctVal = values[i].round();
+        final bool isActiveMonth = activeMonthIndex == i;
+
+        if (isActiveMonth && isHighlighted) {
+          final Paint activeGlow = Paint()..color = divColor.withValues(alpha: 0.35);
+          canvas.drawCircle(pt, 7.0, activeGlow);
+        }
+
+        final Paint dotPaint = Paint()..color = divColor.withValues(alpha: opacity);
+        canvas.drawCircle(pt, isHighlighted ? (isActiveMonth ? 4.5 : 3.8) : 2.5, dotPaint);
+
+        if (isHighlighted) {
+          final Paint whiteDot = Paint()..color = AppColors.white;
+          canvas.drawCircle(pt, 1.8, whiteDot);
+
+          // Render Percentage Detail Label ($pctVal%)
+          textPainter.text = TextSpan(
+            text: '$pctVal%',
+            style: TextStyle(
+              fontSize: isActiveMonth ? 9.5 : 8.5,
+              fontWeight: FontWeight.w800,
+              color: divColor,
+              shadows: const [
+                Shadow(color: AppColors.white, blurRadius: 2),
+                Shadow(color: AppColors.white, blurRadius: 4),
+              ],
+            ),
+          );
+          textPainter.layout();
+          // Offset above the dot
+          final double textY = (pt.dy - (isActiveMonth ? 14 : 12)).clamp(topPadding - 4, size.height);
+          textPainter.paint(canvas, Offset(pt.dx - textPainter.width / 2, textY));
+        }
+      }
+    });
+
+    // 3. Draw X Axis month labels
+    for (int i = 0; i < months.length; i++) {
+      final double x = leftPadding + (months.length == 1 ? chartWidth / 2 : i * stepX);
+      final bool isActive = activeMonthIndex == i;
+
+      textPainter.text = TextSpan(
+        text: months[i],
+        style: TextStyle(
+          fontSize: isActive ? 11 : 10,
+          fontWeight: isActive ? FontWeight.w900 : FontWeight.w700,
+          color: isActive ? AppColors.primary : AppColors.textSecondary,
+        ),
+      );
+      textPainter.layout();
+      textPainter.paint(canvas, Offset(x - textPainter.width / 2, topPadding + chartHeight + 6));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _MultiLineDivisiChartPainter oldDelegate) => true;
+}
+
+class _DivisiBarChartPainter extends CustomPainter {
+  final List<Map<String, dynamic>> data;
+  final int Function(dynamic) toInt;
+  final String keyTotal;
+  final String keyCurrent;
+  final int? activeDivIndex;
+
+  _DivisiBarChartPainter({
+    required this.data,
+    required this.toInt,
+    this.keyTotal = 'target_unit',
+    this.keyCurrent = 'realisasi_unit',
+    this.activeDivIndex,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (data.isEmpty) return;
+
+    const double leftPadding = 32.0;
+    const double rightPadding = 20.0;
+    const double topPadding = 22.0;
+    const double bottomPadding = 28.0;
+
+    final double chartWidth = size.width - leftPadding - rightPadding;
+    final double chartHeight = size.height - topPadding - bottomPadding;
+
+    int maxVal = 1;
+    for (final item in data) {
+      final total = toInt(item[keyTotal]);
+      final current = toInt(item[keyCurrent]);
+      if (total > maxVal) maxVal = total;
+      if (current > maxVal) maxVal = current;
+    }
+    maxVal = (maxVal * 1.2).ceil();
+    if (maxVal < 4) maxVal = 4;
+
+    final Paint gridPaint = Paint()
+      ..color = AppColors.border
+      ..strokeWidth = 1.0;
+
+    final TextPainter textPainter = TextPainter(textDirection: TextDirection.ltr);
+
+    // Draw horizontal grid lines (0, maxVal / 2, maxVal)
+    final gridSteps = [0, maxVal ~/ 2, maxVal];
+    for (final step in gridSteps) {
+      final double y = topPadding + chartHeight * (1.0 - step / maxVal);
+      canvas.drawLine(Offset(leftPadding, y), Offset(size.width - rightPadding, y), gridPaint);
+
+      textPainter.text = TextSpan(
+        text: '$step',
+        style: const TextStyle(fontSize: 10, color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+      );
+      textPainter.layout();
+      textPainter.paint(canvas, Offset(8, y - textPainter.height / 2));
+    }
+
+    final double groupWidth = chartWidth / data.length;
+    final double barWidth = (groupWidth * 0.28).clamp(6.0, 18.0);
+
+    for (int i = 0; i < data.length; i++) {
+      final item = data[i];
+      final String divisi = item['divisi'] ?? '-';
+      final int totalVal = toInt(item[keyTotal]);
+      final int currentVal = toInt(item[keyCurrent]);
+      final bool isActive = activeDivIndex == i;
+
+      final double centerX = leftPadding + (i + 0.5) * groupWidth;
+      final Color divColor = AppDivisiColors.getColor(divisi);
+
+      // Vertical Active Guide Column Highlight
+      if (isActive) {
+        final Paint activeBgPaint = Paint()
+          ..color = AppColors.primary.withValues(alpha: 0.1)
+          ..style = PaintingStyle.fill;
+        final RRect activeBgRRect = RRect.fromRectAndRadius(
+          Rect.fromLTWH(centerX - groupWidth * 0.42, topPadding - 4, groupWidth * 0.84, chartHeight + 8),
+          const Radius.circular(8),
+        );
+        canvas.drawRRect(activeBgRRect, activeBgPaint);
+      }
+
+      // Bar 1: Total (Grey)
+      final double height1 = chartHeight * (totalVal / maxVal);
+      final double rect1Left = centerX - barWidth - 2;
+      final double rect1Top = topPadding + chartHeight - height1;
+      final RRect rrect1 = RRect.fromRectAndRadius(
+        Rect.fromLTWH(rect1Left, rect1Top, barWidth, height1),
+        const Radius.circular(4),
+      );
+      canvas.drawRRect(rrect1, Paint()..color = isActive ? AppColors.textSecondary : AppColors.border);
+
+      // Value label 1 (Total)
+      textPainter.text = TextSpan(
+        text: '$totalVal',
+        style: TextStyle(
+          fontSize: isActive ? 10 : 9,
+          fontWeight: isActive ? FontWeight.w900 : FontWeight.w700,
+          color: isActive ? AppColors.textPrimary : AppColors.textSecondary,
+        ),
+      );
+      textPainter.layout();
+      textPainter.paint(canvas, Offset(rect1Left + barWidth / 2 - textPainter.width / 2, rect1Top - 12));
+
+      // Bar 2: Current (Division Color)
+      final double height2 = chartHeight * (currentVal / maxVal);
+      final double rect2Left = centerX + 2;
+      final double rect2Top = topPadding + chartHeight - height2;
+      final RRect rrect2 = RRect.fromRectAndRadius(
+        Rect.fromLTWH(rect2Left, rect2Top, barWidth, height2),
+        const Radius.circular(4),
+      );
+      canvas.drawRRect(rrect2, Paint()..color = divColor);
+
+      // Value label 2 (Current)
+      textPainter.text = TextSpan(
+        text: '$currentVal',
+        style: TextStyle(
+          fontSize: isActive ? 10 : 9,
+          fontWeight: FontWeight.w900,
+          color: divColor,
+        ),
+      );
+      textPainter.layout();
+      textPainter.paint(canvas, Offset(rect2Left + barWidth / 2 - textPainter.width / 2, rect2Top - 12));
+
+      // X Axis Label
+      final labelText = divisi.length > 8 ? '${divisi.substring(0, 7)}..' : divisi;
+      textPainter.text = TextSpan(
+        text: labelText,
+        style: TextStyle(
+          fontSize: isActive ? 10.5 : 9.5,
+          fontWeight: isActive ? FontWeight.w900 : FontWeight.w700,
+          color: isActive ? AppColors.primary : AppColors.textSecondary,
+        ),
+      );
+      textPainter.layout();
+      textPainter.paint(canvas, Offset(centerX - textPainter.width / 2, topPadding + chartHeight + 6));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DivisiBarChartPainter oldDelegate) => true;
 }
 
 

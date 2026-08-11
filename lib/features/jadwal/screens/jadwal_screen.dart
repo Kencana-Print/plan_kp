@@ -84,9 +84,13 @@ class _JadwalScreenState extends State<JadwalScreen> {
     final auth = context.read<AuthProvider>();
     final jadwalProvider = context.read<JadwalProvider>();
     final masterProvider = context.read<MasterProvider>();
-    final role = auth.user?['user_jabatan'];
-    final isAdmin = role == 'admin' || role == 'manager';
-    if (isAdmin) {
+    final role = (auth.user?['user_jabatan'] ?? '').toString().toLowerCase();
+    final isManager = role == 'manager';
+    final isAdmin = role == 'admin';
+
+    if (isManager) {
+      await jadwalProvider.fetchJadwal(status: 'Draft');
+    } else if (isAdmin) {
       await jadwalProvider.fetchJadwalByDivisi(status: 'Draft');
     } else {
       await jadwalProvider.fetchJadwalByUser(status: 'Draft');
@@ -97,7 +101,6 @@ class _JadwalScreenState extends State<JadwalScreen> {
 
     // Pre-fetch data pendukung di background agar form terbuka instan tanpa delay
     masterProvider.fetchPabrik();
-    final isManager = role == 'manager';
     final userDivisi = isManager ? null : (auth.user?['user_divisi'] ?? '');
     masterProvider.fetchUsers(divisi: userDivisi, showLoading: false);
   }

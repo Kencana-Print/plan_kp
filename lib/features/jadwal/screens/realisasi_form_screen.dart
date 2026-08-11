@@ -1415,6 +1415,44 @@ class _ChecklistItemCardState extends State<_ChecklistItemCard> {
 // ═══════════════════════════════════════════════════════════════
 //  TTD DIALOG
 // ═══════════════════════════════════════════════════════════════
+class _SignatureController extends ChangeNotifier {
+  final List<List<Offset>> _strokes = [];
+  List<Offset> _currentStroke = [];
+
+  List<List<Offset>> get strokes => List.unmodifiable(_strokes);
+  List<Offset> get currentStroke => List.unmodifiable(_currentStroke);
+  bool get isEmpty => _strokes.isEmpty && _currentStroke.isEmpty;
+  bool get isNotEmpty => !isEmpty;
+
+  void startStroke(Offset point) {
+    _currentStroke = [point];
+    notifyListeners();
+  }
+
+  void updateStroke(Offset point) {
+    if (_currentStroke.isNotEmpty) {
+      final last = _currentStroke.last;
+      if ((point - last).distanceSquared < 1.0) return;
+    }
+    _currentStroke.add(point);
+    notifyListeners();
+  }
+
+  void endStroke() {
+    if (_currentStroke.isNotEmpty) {
+      _strokes.add(List.from(_currentStroke));
+      _currentStroke = [];
+      notifyListeners();
+    }
+  }
+
+  void clear() {
+    _strokes.clear();
+    _currentStroke.clear();
+    notifyListeners();
+  }
+}
+
 class _TtdDialog extends StatefulWidget {
   final String? defaultPicNama;
   final List<ChecklistInputModel> checklistItems;
@@ -1429,9 +1467,7 @@ class _TtdDialog extends StatefulWidget {
 class _TtdDialogState extends State<_TtdDialog> {
   final _formKey = GlobalKey<FormState>();
   final _picCtrl = TextEditingController();
-  final List<List<Offset?>> _strokes = [];
-  List<Offset?> _currentStroke = [];
-  bool _hasSignature = false;
+  final _sigController = _SignatureController();
   bool _submitting = false;
   bool _confirmSummary = false;
 
@@ -1444,32 +1480,12 @@ class _TtdDialogState extends State<_TtdDialog> {
   @override
   void dispose() {
     _picCtrl.dispose();
+    _sigController.dispose();
     super.dispose();
   }
 
-  void _onPanStart(DragStartDetails d) {
-    _currentStroke = [d.localPosition];
-    setState(() {
-      _hasSignature = true;
-    });
-  }
-
-  void _onPanUpdate(DragUpdateDetails d) {
-    setState(() => _currentStroke.add(d.localPosition));
-  }
-
-  void _onPanEnd(DragEndDetails _) {
-    _currentStroke.add(null); // penanda akhir stroke
-    setState(() => _strokes.add(List.from(_currentStroke)));
-    _currentStroke = [];
-  }
-
   void _clearCanvas() {
-    setState(() {
-      _strokes.clear();
-      _currentStroke.clear();
-      _hasSignature = false;
-    });
+    _sigController.clear();
   }
 
   void _handleClose() {
@@ -1490,29 +1506,38 @@ class _TtdDialogState extends State<_TtdDialog> {
       Paint()..color = Colors.white,
     );
 
-    // gambar semua strokes
-    final paint = Paint()
+    final linePaint = Paint()
       ..color = Colors.black
       ..strokeWidth = 2.5
       ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
       ..style = PaintingStyle.stroke;
 
-    for (final stroke in _strokes) {
-      final path = Path();
-      bool started = false;
-      for (final pt in stroke) {
-        if (pt == null) {
-          started = false;
-          continue;
-        }
-        if (!started) {
-          path.moveTo(pt.dx, pt.dy);
-          started = true;
-        } else {
-          path.lineTo(pt.dx, pt.dy);
-        }
+    final dotPaint = Paint()
+      ..color = Colors.black
+      ..style = PaintingStyle.fill;
+
+    for (final stroke in _sigController.strokes) {
+      if (stroke.isEmpty) continue;
+      if (stroke.length == 1) {
+        canvas.drawCircle(stroke.first, 1.5, dotPaint);
+        continue;
       }
-      canvas.drawPath(path, paint);
+      final path = Path();
+      path.moveTo(stroke.first.dx, stroke.first.dy);
+      if (stroke.length == 2) {
+        path.lineTo(stroke.last.dx, stroke.last.dy);
+      } else {
+        for (int i = 1; i < stroke.length - 1; i++) {
+          final p0 = stroke[i];
+          final p1 = stroke[i + 1];
+          final midX = (p0.dx + p1.dx) / 2;
+          final midY = (p0.dy + p1.dy) / 2;
+          path.quadraticBezierTo(p0.dx, p0.dy, midX, midY);
+        }
+        path.lineTo(stroke.last.dx, stroke.last.dy);
+      }
+      canvas.drawPath(path, linePaint);
     }
 
     final picture = recorder.endRecording();
@@ -1532,7 +1557,7 @@ class _TtdDialogState extends State<_TtdDialog> {
       );
       return;
     }
-    if (!_hasSignature) {
+    if (_sigController.isEmpty) {
       await AppNotifier.showWarning(context, 'Tanda tangan belum dibuat');
       return;
     }
@@ -1751,25 +1776,53 @@ class _TtdDialogState extends State<_TtdDialog> {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: GestureDetector(
-                      onPanStart: _onPanStart,
-                      onPanUpdate: _onPanUpdate,
-                      onPanEnd: _onPanEnd,
-                      child: CustomPaint(
-                        painter: _SignaturePainter(
-                            strokes: _strokes, currentStroke: _currentStroke),
+                    child: Listener(
+                      behavior: HitTestBehavior.opaque,
+                      onPointerDown: (event) {
+                        _sigController.startStroke(event.localPosition);
+                      },
+                      onPointerMove: (event) {
+                        _sigController.updateStroke(event.localPosition);
+                      },
+                      onPointerUp: (_) {
+                        _sigController.endStroke();
+                      },
+                      onPointerCancel: (_) {
+                        _sigController.endStroke();
+                      },
+                      child: ListenableBuilder(
+                        listenable: _sigController,
+                        builder: (context, _) {
+                          return CustomPaint(
+                            painter: _SignaturePainter(
+                              strokes: _sigController.strokes,
+                              currentStroke: _sigController.currentStroke,
+                            ),
+                          );
+                        },
                       ),
                     ),
                   ),
                 ),
 
-                if (!_hasSignature) ...[
-                  const SizedBox(height: 6),
-                  const Center(
-                      child: Text('Tanda tangan di area atas',
+                ListenableBuilder(
+                  listenable: _sigController,
+                  builder: (context, _) {
+                    if (_sigController.isNotEmpty) return const SizedBox.shrink();
+                    return const Padding(
+                      padding: EdgeInsets.only(top: 6),
+                      child: Center(
+                        child: Text(
+                          'Tanda tangan di area atas',
                           style: TextStyle(
-                              fontSize: 12, color: AppColors.textSecondary))),
-                ],
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
                 const SizedBox(height: 20),
 
                 Consumer<JadwalProvider>(
@@ -1809,33 +1862,50 @@ class _TtdSubmitData {
 
 // ── Custom painter untuk TTD ───────────────────────────────────
 class _SignaturePainter extends CustomPainter {
-  final List<List<Offset?>> strokes;
-  final List<Offset?> currentStroke;
+  final List<List<Offset>> strokes;
+  final List<Offset> currentStroke;
 
-  _SignaturePainter({required this.strokes, required this.currentStroke});
+  _SignaturePainter({
+    required this.strokes,
+    required this.currentStroke,
+  });
 
-  final _paint = Paint()
+  final _linePaint = Paint()
     ..color = Colors.black
     ..strokeWidth = 2.5
     ..strokeCap = StrokeCap.round
+    ..strokeJoin = StrokeJoin.round
     ..style = PaintingStyle.stroke;
 
-  void _drawStroke(Canvas canvas, List<Offset?> stroke) {
-    final path = Path();
-    bool started = false;
-    for (final pt in stroke) {
-      if (pt == null) {
-        started = false;
-        continue;
-      }
-      if (!started) {
-        path.moveTo(pt.dx, pt.dy);
-        started = true;
-      } else {
-        path.lineTo(pt.dx, pt.dy);
-      }
+  final _dotPaint = Paint()
+    ..color = Colors.black
+    ..style = PaintingStyle.fill;
+
+  void _drawStrokePoints(Canvas canvas, List<Offset> points) {
+    if (points.isEmpty) return;
+
+    if (points.length == 1) {
+      canvas.drawCircle(points.first, 1.5, _dotPaint);
+      return;
     }
-    canvas.drawPath(path, _paint);
+
+    final path = Path();
+    path.moveTo(points.first.dx, points.first.dy);
+
+    if (points.length == 2) {
+      path.lineTo(points.last.dx, points.last.dy);
+    } else {
+      for (int i = 1; i < points.length - 1; i++) {
+        final p0 = points[i];
+        final p1 = points[i + 1];
+        final midX = (p0.dx + p1.dx) / 2;
+        final midY = (p0.dy + p1.dy) / 2;
+        path.quadraticBezierTo(p0.dx, p0.dy, midX, midY);
+      }
+      path.lineTo(points.last.dx, points.last.dy);
+    }
+
+    canvas.drawPath(path, _linePaint);
   }
 
   @override
@@ -1849,12 +1919,11 @@ class _SignaturePainter extends CustomPainter {
         ..strokeWidth = 0.8,
     );
     for (final s in strokes) {
-      _drawStroke(canvas, s);
+      _drawStrokePoints(canvas, s);
     }
-    _drawStroke(canvas, currentStroke);
+    _drawStrokePoints(canvas, currentStroke);
   }
 
   @override
-  bool shouldRepaint(_SignaturePainter old) =>
-      old.strokes != strokes || old.currentStroke != currentStroke;
+  bool shouldRepaint(covariant _SignaturePainter oldDelegate) => true;
 }
