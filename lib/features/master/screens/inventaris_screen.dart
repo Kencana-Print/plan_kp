@@ -558,6 +558,13 @@ class _InventarisScreenState extends State<InventarisScreen> {
                       Expanded(
                         child: AnimatedSwitcher(
                           duration: const Duration(milliseconds: 280),
+                          layoutBuilder: (currentChild, previousChildren) => Stack(
+                            alignment: Alignment.topCenter,
+                            children: [
+                              ...previousChildren,
+                              if (currentChild != null) currentChild,
+                            ],
+                          ),
                           switchInCurve: Curves.easeIn,
                           switchOutCurve: Curves.easeOut,
                           child: KeyedSubtree(
@@ -598,10 +605,16 @@ class _InventarisScreenState extends State<InventarisScreen> {
                                 }
                               }
                               if (displayList.isEmpty) {
-                                return EmptyState(
-                                  message: 'Belum ada data inventaris',
-                                  actionLabel: 'Tambah',
-                                  onAction: () => _openForm(),
+                                return Align(
+                                  alignment: Alignment.topCenter,
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(top: 24),
+                                    child: EmptyState(
+                                      message: 'Belum ada data inventaris',
+                                      actionLabel: 'Tambah',
+                                      onAction: () => _openForm(),
+                                    ),
+                                  ),
                                 );
                               }
                               final grouped = <int, List<InventarisModel>>{};
@@ -663,44 +676,50 @@ class _InventarisScreenState extends State<InventarisScreen> {
                               return SingleChildScrollView(
                                 physics: const BouncingScrollPhysics(),
                                 padding: const EdgeInsets.fromLTRB(0, 6, 0, 80),
-                                child: Wrap(
-                                  spacing: 12,
-                                  runSpacing: 12,
-                                  children: jenisIds.map((jenisId) {
-                                    final items = grouped[jenisId]!;
-                                    final firstItem = items.first;
-                                    final jenisNama =
-                                        p.jenisById(jenisId)?.jenisNama ??
-                                            'Jenis #$jenisId';
-                                    final kategoriLabel =
-                                        p.kategoriByJenisId(jenisId) ??
-                                            firstItem.invKategori;
-                                    final expanded =
-                                        _expandedJenisIds.contains(jenisId);
+                                child: Align(
+                                  alignment: Alignment.topCenter,
+                                  child: Wrap(
+                                    alignment: WrapAlignment.start,
+                                    crossAxisAlignment: WrapCrossAlignment.start,
+                                    runAlignment: WrapAlignment.start,
+                                    spacing: 12,
+                                    runSpacing: 12,
+                                    children: jenisIds.map((jenisId) {
+                                      final items = grouped[jenisId]!;
+                                      final firstItem = items.first;
+                                      final jenisNama =
+                                          p.jenisById(jenisId)?.jenisNama ??
+                                              'Jenis #$jenisId';
+                                      final kategoriLabel =
+                                          p.kategoriByJenisId(jenisId) ??
+                                              firstItem.invKategori;
+                                      final expanded =
+                                          _expandedJenisIds.contains(jenisId);
 
-                                    return SizedBox(
-                                      width: cardWidth,
-                                      child: _InventarisGroupCard(
-                                        jenisId: jenisId,
-                                        jenisNama: jenisNama,
-                                        kategoriLabel: kategoriLabel,
-                                        items: items,
-                                        expanded: expanded,
-                                        onToggle: () {
-                                          setState(() {
-                                            if (expanded) {
-                                              _expandedJenisIds.remove(jenisId);
-                                            } else {
-                                              _expandedJenisIds.add(jenisId);
-                                            }
-                                          });
-                                        },
-                                        pabrikLabelBuilder: p.displayPabrik,
-                                        onEditItem: _openForm,
-                                        onAddItem: (jId) => _openForm(null, jId),
-                                      ),
-                                    );
-                                  }).toList(),
+                                      return SizedBox(
+                                        width: cardWidth,
+                                        child: _InventarisGroupCard(
+                                          jenisId: jenisId,
+                                          jenisNama: jenisNama,
+                                          kategoriLabel: kategoriLabel,
+                                          items: items,
+                                          expanded: expanded,
+                                          onToggle: () {
+                                            setState(() {
+                                              if (expanded) {
+                                                _expandedJenisIds.remove(jenisId);
+                                              } else {
+                                                _expandedJenisIds.add(jenisId);
+                                              }
+                                            });
+                                          },
+                                          pabrikLabelBuilder: p.displayPabrik,
+                                          onEditItem: _openForm,
+                                          onAddItem: (jId) => _openForm(null, jId),
+                                        ),
+                                      );
+                                    }).toList(),
+                                  ),
                                 ),
                               );
                             }(),
